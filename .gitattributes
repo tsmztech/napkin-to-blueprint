@@ -1,0 +1,3 @@
+# Keep every text file LF in the repo and in checkouts — the whole project is
+# Markdown + one JS installer, and stable bytes matter for file syncing.
+* text=auto eol=lf

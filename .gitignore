@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+*.tgz
+
+# n2b runtime output (never commit pipeline artifacts from test runs)
+.n2b/
+
+# Claude Code installed copies (source of truth is the repo root; install.js syncs it)
+.claude/

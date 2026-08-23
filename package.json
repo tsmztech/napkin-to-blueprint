@@ -1,0 +1,24 @@
+{
+  "name": "napkin-to-blueprint",
+  "version": "0.1.0",
+  "description": "Napkin to Blueprint (n2b) — idea-to-blueprint engine for Claude Code",
+  "author": "Tapas Mukherjee",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tsmztech/napkin-to-blueprint.git"
+  },
+  "homepage": "https://github.com/tsmztech/napkin-to-blueprint#readme",
+  "bugs": {
+    "url": "https://github.com/tsmztech/napkin-to-blueprint/issues"
+  },
+  "bin": {
+    "n2b": "bin/install.js"
+  },
+  "scripts": {},
+  "files": [
+    "bin",
+    "commands",
+    "n2b"
+  ]
+}
