@@ -1,24 +1,16 @@
 # Napkin to Blueprint (n2b)
 
-> From a napkin sketch to a build-ready blueprint.
+> Turn a raw product idea into an investment-ready product blueprint — before you write any code.
 
-**n2b** turns a raw product idea into an **investment-ready product blueprint** — inside [Claude Code](https://claude.com/claude-code). You describe the idea; a pipeline of specialized agents researches it, matures it into a complete product definition with rich feature specifications, and pairs it with a recommended technical architecture. The result is a structured handoff package that any development team or AI coding tool can build from directly.
+[![npm](https://img.shields.io/npm/v/napkin-to-blueprint)](https://www.npmjs.com/package/napkin-to-blueprint)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-d97757)](https://claude.com/claude-code)
+
+<!-- DEMO GIF: 90-second terminal recording (idea in → blueprint + exports out) goes here -->
+
+**n2b** runs inside [Claude Code](https://claude.com/claude-code). You describe the idea; a pipeline of specialized agents interviews you, researches the market, matures the idea into a complete product definition with implementation-ready feature specs, and pairs it with a recommended technical architecture. The result is a structured handoff package that any development team or AI coding tool can build from directly.
 
 n2b **deliberately does not build the product.** The blueprint is the deliverable — the input *to* a build, not the build.
-
-## How it works
-
-Five slash commands, run in order, inside your project:
-
-```
-Idea ──▶ 1 Intake ──▶ 2 Define ──▶ 3 Specify ──▶ 4 Architect ──▶ ✓ Blueprint complete
-                                                                        │
-                                                              5 Export (optional, repeatable)
-                                                                        ▼
-                                                    dev team · Jira · Devin · Cursor · Lovable · v0 · …
-```
-
-Stages 1–3 mature the **product**: what it is, who it's for, and every feature specified in depth. Stage 4 rides on top of the finished features and answers **"how could this be built?"** — a recommended architecture plus documented alternatives, chosen on merit from the full landscape of modern cloud, SaaS, and API options. Stage 5 renders the finished blueprint for whichever tool or team will consume it.
 
 ## Quickstart
 
@@ -36,6 +28,50 @@ claude
 ```
 
 From there, each stage tells you the exact next command when it finishes. To update n2b later, re-run the same `npx` command.
+
+## How it works
+
+Five slash commands, run in order, inside your project:
+
+```mermaid
+flowchart LR
+    A(["💡 Idea"]) --> S1["1 · Intake"]
+    S1 --> S2["2 · Define"]
+    S2 --> S3["3 · Specify"]
+    S3 --> S4["4 · Architect"]
+    S4 --> B{{"✓ Blueprint complete"}}
+    B --> S5["5 · Export<br/>(optional, repeatable)"]
+    S5 --> T1["Dev team brief"]
+    S5 --> T2["Jira / any tracker"]
+    S5 --> T3["Cursor · Devin · Codex"]
+    S5 --> T4["GitHub Spec Kit"]
+    S5 --> T5["Task Master · BMAD"]
+    S5 --> T6["Lovable · v0 · Bolt · Replit"]
+```
+
+Stages 1–3 mature the **product**: what it is, who it's for, and every feature specified in depth. Stage 4 rides on top of the finished features and answers **"how could this be built?"** — a recommended architecture plus documented alternatives, chosen on merit from the full landscape of modern cloud, SaaS, and API options. Stage 5 renders the finished blueprint for whichever tool or team will consume it.
+
+## Why blueprint first?
+
+Everyone with an idea now jumps straight into an AI build tool. It works — until it doesn't: AI gets you 70% of the way fast, and then the missing groundwork surfaces. No research, no feature definition, no data model, no acceptance criteria — the front half of the software development lifecycle got skipped, and the build drifts.
+
+n2b fills exactly that gap:
+
+- **Before you vibe code.** Run n2b first, then hand Lovable, v0, Bolt, or Cursor a blueprint instead of a vibe. Stage 5 even exports a per-feature prompt pack for your tool of choice. Vibe code the build — not the product decisions.
+- **When you're one person with an idea.** No team, no PM, no architect? The pipeline plays those roles: interviewer, market researcher, spec writer, architect. One idea in → full feature list, per-feature specs, architecture, and database schema — before dev kickoff.
+- **Before drift can start.** Spec tools that also *build* accumulate drift: specs and code slowly contradict each other mid-project. n2b ends at the handoff, so the blueprint you approve is the blueprint your builder receives.
+
+## When to use n2b vs the others
+
+n2b sits *upstream* of the popular spec-driven tools — it works with them, not against them:
+
+| Tool | What it does | Use it when… |
+|------|--------------|--------------|
+| **n2b** | Idea → interview → research → specs → architecture → export | You have a raw idea and want a complete, tool-agnostic blueprint before any build starts |
+| [GitHub Spec Kit](https://github.com/github/spec-kit) | Spec → plan → tasks → **implements** inside your coding agent | You already know what to build and want spec-guided implementation. *n2b exports Spec Kit format (`s5-export speckit`)* |
+| [Task Master](https://github.com/eyaltoledano/claude-task-master) | Parses an **existing PRD** into tasks and subtasks | You already have a PRD. *n2b generates one for it (`s5-export prd`)* |
+| [BMAD-Method](https://github.com/bmad-code-org/BMAD-METHOD) | Full agile lifecycle with role-play agents, planning through build | You want end-to-end inside one framework. *n2b's PRD export feeds its build phase* |
+| [ChatPRD](https://www.chatprd.ai) | SaaS PRD writer for product managers | You want polished documents only, and SaaS is fine |
 
 ## Step-by-step walkthrough
 
@@ -116,6 +152,7 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 
 - It does not write application code, scaffold projects, or set up databases.
 - It is not a replacement for a build tool — it produces the input *to* one.
+- It is not a document generator you fill in — the pipeline interviews, researches, and holds its own output to quality gates before a stage will pass.
 
 ## Requirements
 
