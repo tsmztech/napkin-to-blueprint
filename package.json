@@ -1,7 +1,18 @@
 {
   "name": "napkin-to-blueprint",
   "version": "0.1.0",
-  "description": "Napkin to Blueprint (n2b) — idea-to-blueprint engine for Claude Code",
+  "description": "Napkin to Blueprint (n2b) — idea-to-blueprint engine for Claude Code, Codex, OpenCode, and Cursor",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "opencode",
+    "cursor",
+    "product-blueprint",
+    "prd",
+    "specification",
+    "architecture",
+    "ai-agents"
+  ],
   "author": "Tapas Mukherjee",
   "license": "MIT",
   "repository": {

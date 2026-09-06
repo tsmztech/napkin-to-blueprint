@@ -4,11 +4,11 @@
 
 [![npm](https://img.shields.io/npm/v/napkin-to-blueprint)](https://www.npmjs.com/package/napkin-to-blueprint)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-d97757)](https://claude.com/claude-code)
+[![works with Claude Code · Codex · OpenCode · Cursor](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20OpenCode%20%C2%B7%20Cursor-d97757)](#quickstart)
 
 <!-- DEMO GIF: 90-second terminal recording (idea in → blueprint + exports out) goes here -->
 
-**n2b** runs inside [Claude Code](https://claude.com/claude-code). You describe the idea; a pipeline of specialized agents interviews you, researches the market, matures the idea into a complete product definition with implementation-ready feature specs, and pairs it with a recommended technical architecture. The result is a structured handoff package that any development team or AI coding tool can build from directly.
+**n2b** runs inside your AI coding agent — [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com). You describe the idea; a pipeline of specialized agents interviews you, researches the market, matures the idea into a complete product definition with implementation-ready feature specs, and pairs it with a recommended technical architecture. The result is a structured handoff package that any development team or AI coding tool can build from directly.
 
 n2b **deliberately does not build the product.** The blueprint is the deliverable — the input *to* a build, not the build.
 
@@ -20,14 +20,28 @@ Run in your project folder (an empty folder works — n2b creates everything it 
 npx napkin-to-blueprint@latest
 ```
 
-This installs n2b's commands, agents, workflows, and templates into `./.claude/`. Then open the folder in Claude Code and start:
+A picker asks which runtime(s) to install for. Or skip the picker with a flag:
 
-```
-claude
-/n2b:s1-init        # start here — describe your idea
+```bash
+npx napkin-to-blueprint@latest --claude      # Claude Code  → ./.claude/
+npx napkin-to-blueprint@latest --codex       # Codex        → ./.codex/
+npx napkin-to-blueprint@latest --opencode    # OpenCode     → ./.opencode/
+npx napkin-to-blueprint@latest --cursor      # Cursor       → ./.cursor/
+npx napkin-to-blueprint@latest --all         # all four
 ```
 
-From there, each stage tells you the exact next command when it finishes. To update n2b later, re-run the same `npx` command.
+Flags combine (`--claude --cursor`). Installs are project-local: n2b's commands, agents, workflows, and templates land in the chosen runtime's directory inside your project, translated to that runtime's command format. Then open the folder in your runtime and start:
+
+| Runtime | Installed to | Start here | Next stages |
+|---------|--------------|------------|-------------|
+| Claude Code | `./.claude/` | `/n2b:s1-init` | `/n2b:s2-define` … `/n2b:status` |
+| Codex | `./.codex/` | `$n2b-s1-init` | `$n2b-s2-define` … `$n2b-status` |
+| OpenCode | `./.opencode/` | `/n2b-s1-init` | `/n2b-s2-define` … `/n2b-status` |
+| Cursor | `./.cursor/` | `/n2b-s1-init` (or mention `n2b-s1-init`) | `/n2b-s2-define` … `/n2b-status` |
+
+From there, each stage tells you the exact next command when it finishes. To update n2b later, re-run the same `npx` command. Restart the runtime (or start a new session) after installing so it discovers the new commands.
+
+> Commands in the rest of this README are written in Claude Code form (`/n2b:<name>`). On Codex use `$n2b-<name>`; on OpenCode and Cursor use `/n2b-<name>`.
 
 ## How it works
 
@@ -156,16 +170,19 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 
 ## Requirements
 
-- [Claude Code](https://claude.com/claude-code)
+- One of: [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex) (CLI ≥ 0.130.0 — earlier versions can list skills twice), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com)
 - Node.js ≥ 16 (used only by the installer — zero npm dependencies)
+
+On Codex, OpenCode, and Cursor the pipeline runs every agent on the host's configured default model; the `model_profile` setting only takes effect on Claude Code.
 
 ## Working on n2b itself
 
-Source lives at this repository's root; the installer syncs it into a project's `.claude/`. Runtime artifacts go to the target's `.n2b/`, never back into source.
+Source lives at this repository's root and is authored once, in Claude Code native format; the installer syncs it into the chosen runtime's directory (`.claude/`, `.codex/`, `.opencode/`, `.cursor/`), rewriting paths, command names, includes, and tool names for that host on the way. Runtime artifacts go to the target's `.n2b/`, never back into source.
 
 | Path | Purpose |
 |------|---------|
-| `bin/install.js` | Installer — syncs source into a project's `.claude/` |
+| `bin/install.js` | Installer — syncs source into a project's runtime directory, translating per runtime |
+| `test/install.test.js` | Installer tests (`npm test`, zero dependencies) |
 | `commands/n2b/` | Slash-command definitions |
 | `n2b/agents/` | Stage subagent definitions |
 | `n2b/workflows/` | Per-stage orchestration |
@@ -173,10 +190,11 @@ Source lives at this repository's root; the installer syncs it into a project's 
 | `n2b/templates/` | Output document + tracking templates |
 
 ```bash
-node bin/install.js --target /path/to/test/project   # install a local checkout
+node bin/install.js --claude --target /path/to/test/project   # install a local checkout (any runtime flag, or --all)
+npm test                                                       # installer tests, incl. Claude Code byte-identity
 ```
 
-Everything is Markdown — commands, workflows, agents, and templates are all `.md` files. After editing source, re-run the installer before testing.
+Everything is Markdown — commands, workflows, agents, and templates are all `.md` files. After editing source, re-run the installer before testing. Claude Code output is a verbatim copy of source and is pinned by `test/fixtures/claude-baseline.json`; after an intentional source change, refresh it with `node test/install.test.js --update-baseline`.
 
 ## License
 
