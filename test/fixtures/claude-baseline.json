@@ -1,6 +1,5 @@
 {
-  "_comment": "Snapshot of what the pre-multi-runtime installer (bin/install.js at commit 78ac83e) wrote under <target>/.claude/. Keys are paths relative to .claude/, values are sha256 of file bytes. Regenerate with: node test/install.test.js --update-baseline",
-  "sourceCommit": "78ac83e",
+  "_comment": "Snapshot of what `n2b --claude` writes under <target>/.claude/. Keys are paths relative to .claude/, values are sha256 of file bytes. Claude Code output must stay byte-identical to a verbatim copy of source; regenerate ONLY after an intentional source change: node test/install.test.js --update-baseline",
   "root": ".claude",
   "fileCount": 96,
   "files": {
@@ -34,7 +33,7 @@
     "n2b/agents/stage-5/export-vibe-pack-formatter.md": "f600bf5b25a85c21a83766549045682c5a564a04cc2f15a2ba08721dea76893b",
     "n2b/references/config-schema.md": "aad60c2d2c9343dba47868dd4bf77d58e012a6ecd920154ad2c79ed22e73dbbf",
     "n2b/references/id-prefixes.md": "d89688d2acee6ec9b81f1c9c3ee6b9747cfd3f9f542612148cf22c7440d62491",
-    "n2b/references/model-profiles.md": "95d6d5a6295a5cf7a013888b3c56f7cdafb5158aa02dca79e0e5b522450a917e",
+    "n2b/references/model-profiles.md": "adecf15e6882ce48d861fdac9040a4af9898ad1004e6689a83798ee3b9897013",
     "n2b/references/pipeline-gatekeeper.md": "d3e1f02c134d3e357225be5d99ecad164977f4d4111c161bb983921bb1dc0542",
     "n2b/references/pipeline-rules.md": "d5578e17d8e8fd6e6e2f070e625b1125958d92084497cd34f1f8ed9affc2d4e3",
     "n2b/references/stage-1/questioning.md": "f9808a118bf51df54f3260e7f7ab12df3d12acf37e0cb706067f5d9cd2e460ff",

@@ -1,3 +1,4 @@
+<!-- n2b-runtime: claude -->
 # Model Profiles Reference
 
 This document is the model profile reference for n2b's agent pipeline. Workflows @-include this file to resolve which model to use when spawning each agent. The resolution is done inline by the workflow — no runtime config tool needed.
@@ -13,6 +14,8 @@ This document is the model profile reference for n2b's agent pipeline. Workflows
 | **budget** | Sonnet for producing and researching, Haiku only for extraction/verification roles. Minimize cost for exploratory/draft projects without letting a weak model own a load-bearing document. | Lowest | Fastest |
 
 **Model names are tier aliases, not pinned IDs** (decided 2026-07-25, decision 88): `fable` / `opus` / `sonnet` / `haiku` resolve to the harness's current model of that tier via the Agent tool's `model` parameter, so the mapping never goes stale as model versions advance. If a resolved tier is unavailable in the user's harness (e.g. `fable` on plans without Mythos-class access), fall back one tier (`fable` → `opus`) and proceed — never fail a spawn over model availability.
+
+**Runtime rule — non-Claude runtimes (Codex, OpenCode, Cursor):** the `n2b-runtime` marker at the top of this file names the runtime this copy was installed for (the installer stamps it). When it is anything other than `claude`, do not pass a `model` parameter when spawning. Ignore the per-agent mapping table; the host's configured default model applies to every agent. The profile governs nothing else on those runtimes.
 
 ---
 
