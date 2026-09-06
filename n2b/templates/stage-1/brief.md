@@ -82,6 +82,18 @@ omit this section entirely.]
 
 *Stage 3 carries these artifacts verbatim into the blueprint package as the
 design layer's source of truth.*
+
+## Source Materials
+[Only include this section if the user supplied documents during intake — a brief,
+notes, scenarios, a file, or URLs — preserved in `.n2b/inputs/source/`. If everything
+came through conversation, omit this section entirely.]
+
+- `.n2b/inputs/source/[filename]` — [one line: what it covers]
+- ...
+
+*Preserved verbatim so nothing the user wrote is lost in this brief's compression.
+Stage 2 works from this brief (brief-first); the originals are kept for reference and
+for Stage 1 re-runs.*
 ```
 
 </template>
@@ -171,6 +183,13 @@ design layer's source of truth.*
 - Points to `.n2b/inputs/design-system/` and summarizes what was provided
 - Stage 3 carries the supplied artifacts into the blueprint package verbatim (n2b never generates a design system)
 
+#### Source Materials
+- Only present when the user supplied documents — pasted or by file path/URL — and they were preserved in `.n2b/inputs/source/`
+- If everything came through conversation, omit the section entirely — do NOT add an empty section
+- One bullet per preserved file: the path and one line on what it covers — never a summary of its contents (the brief above is the summary)
+- Always the last section, below Open Questions (and below Feature Direction / Design System when present) — Stage 2's feature scan stops at Open Questions and must not read these bullets as features
+- The brief is still the founding document: Stage 2 works from it (brief-first). The originals exist so nothing the user wrote is lost and a Stage 1 re-run never needs them pasted again
+
 ### How Downstream Agents Consume This
 
 | Section | Primary Consumer | How They Use It |
@@ -187,5 +206,6 @@ design layer's source of truth.*
 | Open Questions | Research agent | First items to investigate |
 | Feature Direction | Stage 2 Feature Discovery | Starting point for feature identification — validates and expands these |
 | Design System | Stage 3 workflow (passthrough) | Carries the supplied artifacts into the blueprint package verbatim as the design layer's source of truth |
+| Source Materials | Human reference; Stage 1 re-runs | Not a Stage 2 input — agents work from the brief (brief-first). Preserves the user's originals so the brief's compression never loses them |
 
 </guidelines>

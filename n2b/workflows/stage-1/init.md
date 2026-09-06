@@ -377,11 +377,23 @@ Ask inline (freeform text, NOT AskUserQuestion):
 
 > **What do you want to build?**
 >
-> Tell me everything — the idea, the problem, who it's for, how you imagine it working. Stream of consciousness is fine. If you already have a written brief, notes, or scenarios, paste them (or point me at a file) — I'll work from what you have and only ask about what's missing.
+> Tell me everything — the idea, the problem, who it's for, how you imagine it working. Stream of consciousness is fine. If you already have a written brief, notes, or scenarios, paste them (or point me at a file) — I'll work from what you have. I'll only ask about what's missing, then play the whole thing back to you before anything gets written.
 
 Wait for the user's response. Let them dump their mental model.
 
 **Supplied-document rule:** if the user pastes a document or points at a file path, read it **fully** before asking a single question (use the Read tool for files). A supplied brief is first-class input — treat its contents exactly as if the user had said them in conversation.
+
+**Preserve the source.** The brief compresses what the user supplied; the original must not be lost with it. This applies to *documents* — a brief, notes, scenarios, anything the user clearly wrote before this conversation — not to ordinary conversational answers. Before questioning continues:
+
+```bash
+mkdir -p .n2b/inputs/source
+```
+
+- File path supplied → copy the file into `.n2b/inputs/source/`, keeping its name.
+- Document pasted inline → write it **verbatim** to `.n2b/inputs/source/pasted-notes.md` (a second paste gets `pasted-notes-2.md`, and so on). Never trim, edit, or reformat it.
+- URL or other pointer → record it in `.n2b/inputs/source/SOURCES.md` with one line on what it covers.
+
+Remember this for Step 6 (conditional `## Source Materials` brief section). Nothing else changes: the brief is still written from the conversation, and Stage 2 still works from the brief (brief-first) — the originals are kept so nothing the user wrote is lost, and so a Stage 1 re-run never needs them pasted again.
 
 Then follow the thread naturally — ask 1-2 freeform follow-ups that dig into what they said:
 - Follow their energy — whatever they emphasized, explore that
@@ -423,7 +435,7 @@ After each meaningful exchange, run the clarity check described in `questioning.
 - **3+ core high, remaining medium** → keep conversing but consider suggesting show-back soon.
 - **Any core dimension low** → keep conversing, weave questions about low-clarity areas into the thread naturally.
 
-Questioning is always governed by the coverage map from Step 2.5: `given` is never re-asked, `implied` gets at most one interpretation check, `missing` gets real questioning — deepest (most consequential) first.
+Questioning is always governed by the coverage map from Step 2.5: `given` is never re-asked, `implied` gets at most one interpretation check, `missing` gets real questioning — deepest (most consequential) first. When several dimensions sit at `implied`, batch their interpretation checks into one AskUserQuestion call (up to 4 questions) per `questioning.md` `<using_askuserquestion>` — one confirmation screen, not four rounds.
 
 ### The Constraints Question — asked once, never interrogated
 
@@ -672,9 +684,13 @@ The frontmatter has exactly these 5 fields — no others. Hosting and deployment
    - **If the user supplied design-system artifacts** (ingested into `.n2b/inputs/design-system/` during Step 3): Add a Design System section after Open Questions (after Feature Direction if both are present) with a pointer to `.n2b/inputs/design-system/` and a short summary of what was provided (files, tokens, URL note). Stage 3 adopts it as the source of truth for the design layer.
    - **If not:** Omit the section entirely — do not add an empty section.
 
-9. Write the file using the Write tool to `.n2b/BRIEF.md`.
+9. **Conditional Source Materials section:**
+   - **If the user supplied documents** (preserved in `.n2b/inputs/source/` per the Supplied-document rule in Step 2): Add a Source Materials section as the *last* section — after Open Questions, and after Feature Direction and Design System when those are present — listing each preserved file with one line on what it covers. Every conditional section sits below `## Open Questions` so Stage 2's feature scan, which stops at that heading, never misreads them.
+   - **If not:** Omit the section entirely — do not add an empty section.
 
-10. **Step tracking after writing BRIEF.md:**
+10. Write the file using the Write tool to `.n2b/BRIEF.md`.
+
+11. **Step tracking after writing BRIEF.md:**
    - Tick `- [x] BRIEF.md written` in `.n2b/tracking/stages/s1-init/STAGE.md`
    - Update `.n2b/tracking/STATE.md` frontmatter: `current_step: gate-0`, `last_updated: {ISO timestamp}`
    - Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "BRIEF.md written", Next action "Gate 0 validation"
@@ -803,9 +819,10 @@ Update the Gates section to reflect what you found:
   - Retries: 0
 - Fill Output section:
   ```
-  - .n2b/BRIEF.md (10 sections{, + Feature Direction / Design System when present})
+  - .n2b/BRIEF.md (10 sections{, + Feature Direction / Design System / Source Materials when present})
   - .n2b/config.json (model_profile, spec_review, design_system_source)
   {- .n2b/inputs/design-system/ (user-supplied design artifacts) — only when provided}
+  {- .n2b/inputs/source/ (user-supplied documents, preserved verbatim) — only when provided}
   ```
 
 After writing, s1-init/STAGE.md is a **permanent receipt** — it carries the Gate 0 self-audit evidence. Do not modify it again.
@@ -874,6 +891,7 @@ After writing, s1-init/STAGE.md is a **permanent receipt** — it carries the Ga
   - Project: {project_name from BRIEF.md}
   - Brief: .n2b/BRIEF.md (10 sections)
   {- Design system: user-supplied, in .n2b/inputs/design-system/ — only when provided}
+  {- Source materials: user-supplied, in .n2b/inputs/source/ — only when provided}
 
   ## Session Continuity
 
@@ -954,6 +972,8 @@ Do NOT create a git commit.
 - Show-back was narrative format, not template sections, and ended with a "Still open" coverage tail mapping 1:1 onto Open Questions
 - Feature Direction section present only when Path D was taken — omitted otherwise
 - Design System section present only when the user supplied artifacts (with a pointer to `.n2b/inputs/design-system/`) — omitted otherwise
+- Any document the user pasted or pointed at was preserved verbatim in `.n2b/inputs/source/`, and the brief's Source Materials section lists it — section omitted when nothing was supplied
+- Several `implied` dimensions were confirmed in one AskUserQuestion call, not one exchange each
 - Questioning felt like a conversation, not an interview
 - No round cap — conversation ran until clarity or user chose to proceed
 - User had 4 choices at the fork: hand off, add more, correct, features
