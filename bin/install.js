@@ -38,6 +38,7 @@ const RUNTIMES = {
     // (gsd-core capabilities/claude/capability.json: local kind "commands", converter null)
     commandKind: 'claude-commands',
     namespaceStyle: 'colon',      // /n2b:<stem>
+    toolNames: {},
     invoke: '/n2b:s1-init',
     nextStep: 'Open the folder in Claude Code and run /n2b:s1-init',
   },
@@ -50,6 +51,7 @@ const RUNTIMES = {
     //  converter convertClaudeCommandToCodexSkill; commandStyle "shell-var")
     commandKind: 'skills',
     namespaceStyle: 'shell-var',  // $n2b-<stem>
+    toolNames: {},             // AskUserQuestion kept; mapped in the skill adapter header
     invoke: '$n2b-s1-init',
     nextStep: 'Open the folder in Codex and run $n2b-s1-init',
   },
@@ -62,6 +64,7 @@ const RUNTIMES = {
     //  destSubpath "commands"; commandStyle "slash-hyphen")
     commandKind: 'flat-commands',
     namespaceStyle: 'hyphen',     // /n2b-<stem>
+    toolNames: { AskUserQuestion: 'question' },   // gsd-core bin/install.js:7212
     invoke: '/n2b-s1-init',
     nextStep: 'Open the folder in OpenCode and run /n2b-s1-init',
   },
@@ -74,6 +77,7 @@ const RUNTIMES = {
     //  local kind "skills", converter convertClaudeCommandToCursorSkill)
     commandKind: 'skills',
     namespaceStyle: 'hyphen',     // /n2b-<stem> from the "/" menu, or a mention
+    toolNames: { AskUserQuestion: 'conversational prompting' },   // gsd-core bin/install.js:2572
     invoke: '/n2b-s1-init',
     nextStep: 'Open the folder in Cursor and run /n2b-s1-init (or mention n2b-s1-init)',
   },
@@ -210,15 +214,127 @@ function promptRuntime(callback) {
   });
 }
 
-// ─── Content translation (filled in by later commits) ────────────────────────
+// ─── Content rewrite rules (non-Claude runtimes only) ────────────────────────
+// Pure functions taking (content, rt), applied R1 → R4 then the runtime
+// stamp. Claude Code is the source format and never passes through these.
+//
+// R5 (brand neutralising, gsd-core neutralizeAgentReferences
+// bin/install.js:7195-7207) is deliberately NOT implemented: a grep of
+// commands/ and n2b/ on 2026-09-05 found zero standalone "Claude" — only
+// "Claude Code" product references, which gsd-core preserves as well.
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 /**
- * Apply the per-runtime content rewrites to one source file.
- * Identity for Claude Code (the source format).
+ * R1 — path rewrite: `.claude/` → `.<dir>/`.
+ * n2b only uses project-relative forms (`.claude/n2b/...`, `./.claude/n2b/...`);
+ * there are no `~/.claude` or `$HOME/.claude` forms. The guarded bare-form
+ * regex is gsd-core's (Codex converter, bin/install.js:3846-3850): the
+ * lookbehind keeps URLs and already-anchored paths untouched. `./` form first.
  */
-function rewriteContent(content, rt, relPath) { // eslint-disable-line no-unused-vars
-  return content;
+function rewritePaths(content, rt) {
+  return content
+    .replace(/\.\/\.claude\//g, `./${rt.dir}/`)
+    .replace(/(?<![A-Za-z0-9_\-./~$])\.claude\//g, `${rt.dir}/`);
 }
+
+const INCLUDE_LINE = /^@(\.\/\S+)\s*$/;
+const INCLUDE_LIST_INTRO = 'Before doing anything else, read these files in full (they are part of these instructions):';
+
+/**
+ * R2 — `@./...` include lines → an explicit read list.
+ * Claude Code expands `@path` includes; Codex and Cursor SKILL.md do not, and
+ * OpenCode's `@file` handling resolves relative to the commands dir and has
+ * bitten gsd-core twice (#2376, #2831). Rather than inherit host-specific `@`
+ * semantics, every contiguous block of `@./` lines becomes a prose "read
+ * these files" list, and inline `@./.<dir>/` mentions lose their `@`.
+ * Paths are listed project-relative (after R1). `@AGENTS.md`-style lines
+ * (no `./`) are untouched.
+ */
+function rewriteIncludes(content, rt) { // eslint-disable-line no-unused-vars
+  const lines = content.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!INCLUDE_LINE.test(lines[i])) {
+      out.push(lines[i]);
+      continue;
+    }
+    const block = [];
+    while (i < lines.length && INCLUDE_LINE.test(lines[i])) {
+      block.push(lines[i].match(INCLUDE_LINE)[1].replace(/^\.\//, ''));
+      i++;
+    }
+    i--;
+    out.push(INCLUDE_LIST_INTRO);
+    for (const p of block) out.push(`- ${p}`);
+  }
+  return out.join('\n').replace(/@(?=\.\/\.[A-Za-z])/g, '');
+}
+
+/**
+ * R3 — command namespace. Colon style (`/n2b:<stem>`) is Claude-only.
+ *  - hyphen (opencode, cursor): `/n2b:` → `/n2b-`, and `n2b:` → `n2b-`
+ *    elsewhere (gsd-core Cursor bin/install.js:2562-2566, OpenCode :7215).
+ *  - shell-var (codex): `/n2b:<cmd>` → `$n2b-<cmd>`, using gsd-core's
+ *    boundary-guarded form so filesystem paths are never touched
+ *    (convertSlashCommandsToCodexSkillMentions, bin/install.js:3800-3822).
+ */
+function rewriteNamespace(content, rt) {
+  if (rt.namespaceStyle === 'colon') return content;
+  let out = content;
+  if (rt.namespaceStyle === 'shell-var') {
+    // Colon-style never appears as a path segment, so no boundary guard needed.
+    out = out.replace(new RegExp(`\\/${COMMAND_PREFIX}:([a-z0-9-]+)`, 'gi'),
+      (_, cmd) => `$${COMMAND_PREFIX}-${cmd.toLowerCase()}`);
+    // Hyphen-style mentions: left boundary (start / whitespace / inline-prose
+    // delimiter) and right boundary (not followed by a path separator).
+    out = out.replace(new RegExp(`(?<=^|[\\s\`"'([])\\/${COMMAND_PREFIX}-([a-z0-9-]+)(?![a-z0-9/-])`, 'gi'),
+      (_, cmd) => `$${COMMAND_PREFIX}-${cmd.toLowerCase()}`);
+  }
+  // Anything still in colon form (frontmatter `name:`, bare mentions) → hyphen.
+  return out.replace(new RegExp(`\\b${COMMAND_PREFIX}:(?=[a-z])`, 'g'), `${COMMAND_PREFIX}-`);
+}
+
+/**
+ * R4 — tool names in body prose, from the descriptor's `toolNames` map
+ * (word-boundary replace). Only `AskUserQuestion` needs mapping for n2b;
+ * gsd-core leaves Read/Write/Bash/Agent/WebSearch/WebFetch prose alone on
+ * every runtime, and Codex keeps `AskUserQuestion` and maps it in the skill
+ * adapter header instead (bin/install.js:3871-3889).
+ */
+function rewriteToolNames(content, rt) {
+  let out = content;
+  for (const [from, to] of Object.entries(rt.toolNames || {})) {
+    out = out.replace(new RegExp(`\\b${escapeRegExp(from)}\\b`, 'g'), to);
+  }
+  return out;
+}
+
+/**
+ * Runtime stamp: `<!-- n2b-runtime: claude -->` in source (model-profiles.md)
+ * is rewritten to the target runtime id so workflows know which host they run
+ * on without guessing (gsd-core _stampNonClaudeRuntimeDefaults,
+ * bin/install.js:7972-7976).
+ */
+const RUNTIME_STAMP = /<!-- n2b-runtime: [a-z-]+ -->/g;
+function stampRuntime(content, rt) {
+  return content.replace(RUNTIME_STAMP, `<!-- n2b-runtime: ${rt.id} -->`);
+}
+
+/** Apply every rewrite rule for a non-Claude runtime. Identity for Claude Code. */
+function rewriteContent(content, rt) {
+  if (rt.id === DEFAULT_RUNTIME) return content;
+  let out = rewritePaths(content, rt);
+  out = rewriteIncludes(out, rt);
+  out = rewriteNamespace(out, rt);
+  out = rewriteToolNames(out, rt);
+  out = stampRuntime(out, rt);
+  return out;
+}
+
+// ─── Command writers (filled in by the next commit) ──────────────────────────
 
 /**
  * Reshape a command file into the runtime's command artifact.
@@ -313,13 +429,13 @@ function buildInstallMap(source, rt) {
     const rel = `commands/${COMMAND_PREFIX}/${stem}.md`;
     const out = isClaude
       ? content
-      : convertCommand(rewriteContent(content.toString('utf8'), rt, rel), stem, rt);
+      : convertCommand(rewriteContent(content.toString('utf8'), rt), stem, rt);
     map.set(commandDestPath(stem, rt), out);
   }
   for (const { rel, content } of source.payload) {
     const out = isClaude
       ? content
-      : rewriteContent(content.toString('utf8'), rt, `${PAYLOAD_DIR}/${rel}`);
+      : rewriteContent(content.toString('utf8'), rt);
     map.set(`${PAYLOAD_DIR}/${rel}`, out);
   }
   return map;
@@ -415,7 +531,13 @@ module.exports = {
   parseArgs,
   buildRuntimePromptText,
   parseRuntimeInput,
+  rewritePaths,
+  rewriteIncludes,
+  rewriteNamespace,
+  rewriteToolNames,
+  stampRuntime,
   rewriteContent,
+  INCLUDE_LIST_INTRO,
   convertCommand,
   commandDestPath,
   isOwnedPath,
