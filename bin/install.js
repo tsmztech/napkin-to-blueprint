@@ -37,6 +37,7 @@ const RUNTIMES = {
     // commands/n2b/<stem>.md — the source layout, copied verbatim
     // (gsd-core capabilities/claude/capability.json: local kind "commands", converter null)
     commandKind: 'claude-commands',
+    commandWriter: 'claude-command',
     namespaceStyle: 'colon',      // /n2b:<stem>
     toolNames: {},
     invoke: '/n2b:s1-init',
@@ -50,6 +51,7 @@ const RUNTIMES = {
     // (gsd-core capabilities/codex/capability.json: local kind "skills",
     //  converter convertClaudeCommandToCodexSkill; commandStyle "shell-var")
     commandKind: 'skills',
+    commandWriter: 'codex-skill',
     namespaceStyle: 'shell-var',  // $n2b-<stem>
     toolNames: {},             // AskUserQuestion kept; mapped in the skill adapter header
     invoke: '$n2b-s1-init',
@@ -63,6 +65,7 @@ const RUNTIMES = {
     //  capabilities/opencode/capability.json: local kind "commands",
     //  destSubpath "commands"; commandStyle "slash-hyphen")
     commandKind: 'flat-commands',
+    commandWriter: 'opencode-command',
     namespaceStyle: 'hyphen',     // /n2b-<stem>
     toolNames: { AskUserQuestion: 'question' },   // gsd-core bin/install.js:7212
     invoke: '/n2b-s1-init',
@@ -76,6 +79,7 @@ const RUNTIMES = {
     // retired in gsd-core #2644 (capabilities/cursor/capability.json:
     //  local kind "skills", converter convertClaudeCommandToCursorSkill)
     commandKind: 'skills',
+    commandWriter: 'cursor-skill',
     namespaceStyle: 'hyphen',     // /n2b-<stem> from the "/" menu, or a mention
     toolNames: { AskUserQuestion: 'conversational prompting' },   // gsd-core bin/install.js:2572
     invoke: '/n2b-s1-init',
@@ -334,14 +338,215 @@ function rewriteContent(content, rt) {
   return out;
 }
 
-// ─── Command writers (filled in by the next commit) ──────────────────────────
+// ─── Command writers ─────────────────────────────────────────────────────────
+// Frontmatter helpers borrowed from gsd-core bin/install.js:2514-2545.
+
+function toSingleLine(value) {
+  return String(value).replace(/\s+/g, ' ').trim();
+}
 
 /**
- * Reshape a command file into the runtime's command artifact.
- * Identity for Claude Code.
+ * Always quote emitted YAML strings: a description beginning with `[` or `{`
+ * crashes frontmatter loaders (gsd-core yamlQuote, bin/install.js:2049-2053).
  */
-function convertCommand(content, stem, rt) { // eslint-disable-line no-unused-vars
-  return content;
+function yamlQuote(value) {
+  return JSON.stringify(String(value));
+}
+
+/** Skill names must be plain identifiers equal to their directory name. */
+function yamlIdentifier(value) {
+  const text = String(value).trim();
+  return /^[A-Za-z0-9][A-Za-z0-9-]*$/.test(text) ? text : yamlQuote(text);
+}
+
+function truncate(text, max) {
+  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}
+
+/**
+ * Split `---` frontmatter from body. The body keeps its leading newline
+ * (gsd-core extractFrontmatterAndBody, bin/install.js:2530-2545).
+ */
+function splitFrontmatter(content) {
+  if (!content.startsWith('---')) return { frontmatter: null, body: content };
+  const end = content.indexOf('\n---', 3);
+  if (end === -1) return { frontmatter: null, body: content };
+  return { frontmatter: content.slice(3, end).trim(), body: content.slice(end + 4) };
+}
+
+/** Scalar frontmatter field, surrounding quotes stripped. */
+function frontmatterField(frontmatter, name) {
+  if (!frontmatter) return null;
+  const match = frontmatter.match(new RegExp(`^${name}:[ \\t]*(.+)$`, 'm'));
+  return match ? match[1].trim().replace(/^(['"])(.*)\1$/, '$2') : null;
+}
+
+/** YAML list frontmatter field (`key:` followed by `  - item` lines). */
+function frontmatterList(frontmatter, name) {
+  if (!frontmatter) return [];
+  const match = frontmatter.match(new RegExp(`^${name}:[ \\t]*\\n((?:[ \\t]+-[ \\t]+.+(?:\\n|$))*)`, 'm'));
+  if (!match) return [];
+  return match[1].split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- ')).map((l) => l.slice(2).trim());
+}
+
+function argumentsSentence(argumentHint) {
+  return argumentHint ? ` Arguments: \`${argumentHint}\`.` : '';
+}
+
+// Codex ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Prose adapter prepended to every Codex SKILL.md, teaching the host how to
+ * perform the Claude-native constructs n2b workflows use. Trimmed from
+ * gsd-core getCodexSkillAdapterHeader (bin/install.js:3862-3973); the
+ * "stop and wait, never default" rule is gsd-core #3018 / #3808.
+ */
+function getCodexSkillAdapterHeader(skillName, argumentHint) {
+  const invocation = `$${skillName}`;
+  return `<codex_skill_adapter>
+## A. Skill invocation
+- This skill is invoked by mentioning \`${invocation}\`. Treat all user text after \`${invocation}\` as the command's arguments; if there are none, run with no arguments.${argumentsSentence(argumentHint)}
+- Claude Code's \`@\`-include lines have been replaced by explicit "read these files" lists. Read every listed file in full before acting on the instructions that follow it.
+
+## B. AskUserQuestion → request_user_input
+n2b workflows say \`AskUserQuestion\` (Claude Code syntax). Translate each call to Codex \`request_user_input\`:
+- \`header\` → \`header\`, \`question\` → \`question\`; options written as \`"Label" — description\` → \`{label: "Label", description: "description"}\`; generate \`id\` from the header (lowercase, spaces → underscores).
+- A batched call with several questions → one \`request_user_input\` with several entries in \`questions[]\`.
+- Codex has no \`multiSelect\`: use sequential single-selects, or present a numbered freeform list and ask for comma-separated numbers.
+- Fallback: when \`request_user_input\` is rejected or unavailable, present every question as a plain-text numbered list, then STOP and wait for the user's reply. Do NOT pick a default and continue, and do NOT write any \`.n2b/\` artifact before the user has answered.
+
+## C. Subagents → spawn_agent
+n2b workflows say "spawn ... using the Agent tool". Translate to Codex collaboration tools:
+- Spawn with \`spawn_agent(message=...)\`, passing the workflow's prompt for that agent verbatim as \`message\`.
+- Do NOT pass a \`model\` parameter. Codex's configured default model applies to every agent (see the Runtime rule in \`.codex/n2b/references/model-profiles.md\`).
+- If \`spawn_agent\` is not visible, discover tools with \`tool_search\` first. If it is still unavailable, or automatic spawning is not permitted, do the work inline in the current agent by following the agent contract the workflow names.
+- Parallel passes: spawn every agent first, collect the agent IDs, then \`collaboration.wait_agent(timeout_ms=...)\` for each. Do NOT use \`functions.wait(cell_id=...)\` — that is an unrelated exec-cell tool.
+- Read each agent's output for the structured markers the workflow expects, then \`close_agent(id)\` if that tool is visible.
+</codex_skill_adapter>`;
+}
+
+/**
+ * Command → Codex skill (gsd-core convertClaudeCommandToCodexSkill,
+ * bin/install.js:3974-3990). `allowed-tools` is dropped, as gsd-core does.
+ */
+function convertCommandToCodexSkill(content, stem) {
+  const skillName = `${COMMAND_PREFIX}-${stem}`;
+  const { frontmatter, body } = splitFrontmatter(content);
+  const description = toSingleLine(frontmatterField(frontmatter, 'description') || `Run n2b workflow ${skillName}.`);
+  const shortDescription = truncate(description, 180);
+  const adapter = getCodexSkillAdapterHeader(skillName, frontmatterField(frontmatter, 'argument-hint'));
+  return `---\nname: ${yamlQuote(skillName)}\ndescription: ${yamlQuote(description)}\nmetadata:\n  short-description: ${yamlQuote(shortDescription)}\n---\n\n${adapter}\n\n${body.trimStart()}`;
+}
+
+// Cursor ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Cursor skill adapter (gsd-core getCursorSkillAdapterHeader,
+ * bin/install.js:2591-2615). R4 already rewrote `AskUserQuestion` to
+ * "conversational prompting" in the body; section B defines it.
+ */
+function getCursorSkillAdapterHeader(skillName, argumentHint) {
+  return `<cursor_skill_adapter>
+## A. Skill invocation
+- This skill is invoked with \`/${skillName}\` from the \`/\` menu, or when the user mentions \`${skillName}\`. Treat all user text after the invocation as the command's arguments; if there are none, run with no arguments.${argumentsSentence(argumentHint)}
+- Claude Code's \`@\`-include lines have been replaced by explicit "read these files" lists. Read every listed file in full before acting on the instructions that follow it.
+
+## B. User prompting
+Wherever the workflow calls for conversational prompting, ask in your response text:
+- Present the options as a numbered list and ask the user to reply with a number (or free text).
+- For multi-select, ask for comma-separated numbers.
+- Then STOP and wait for the reply. Do NOT pick a default and continue, and do NOT write any \`.n2b/\` artifact before the user has answered.
+
+## C. Tools
+- \`Shell\` for the workflows' bash steps.
+- \`Read\`, \`Write\`, \`Glob\`, \`Grep\`, \`Task\`, \`WebSearch\`, \`WebFetch\` as needed.
+
+## D. Subagents
+n2b workflows say "spawn ... using the Agent tool". Use \`Task(subagent_type="generalPurpose", prompt=...)\` with the workflow's prompt for that agent verbatim. Do NOT pass a \`model\` parameter; Cursor's configured model applies to every agent (see the Runtime rule in \`.cursor/n2b/references/model-profiles.md\`).
+</cursor_skill_adapter>`;
+}
+
+/**
+ * Command → Cursor skill (gsd-core convertClaudeCommandToCursorSkill,
+ * bin/install.js:2617-2641). `allowed-tools` dropped; `user-invocable` is
+ * deliberately not emitted (Cursor ignores it and it hid a duplicate-entry
+ * bug, gsd-core #2644).
+ */
+function convertCommandToCursorSkill(content, stem) {
+  const skillName = `${COMMAND_PREFIX}-${stem}`;
+  const { frontmatter, body } = splitFrontmatter(content);
+  const description = toSingleLine(frontmatterField(frontmatter, 'description') || `Run n2b workflow ${skillName}.`);
+  const shortDescription = truncate(description, 180);
+  const adapter = getCursorSkillAdapterHeader(skillName, frontmatterField(frontmatter, 'argument-hint'));
+  return `---\nname: ${yamlIdentifier(skillName)}\ndescription: ${yamlQuote(shortDescription)}\n---\n\n${adapter}\n\n${body.trimStart()}`;
+}
+
+// OpenCode ────────────────────────────────────────────────────────────────────
+
+// Claude Code → OpenCode tool names (gsd-core claudeToOpencodeTools,
+// bin/install.js:1631-1637). Everything else is lowercased.
+const CLAUDE_TO_OPENCODE_TOOLS = {
+  AskUserQuestion: 'question',
+  SlashCommand: 'skill',
+  TodoWrite: 'todowrite',
+  WebFetch: 'webfetch',
+  WebSearch: 'websearch',
+};
+
+/** gsd-core convertToolName, bin/install.js:1689-1700. */
+function opencodeToolName(claudeTool) {
+  if (CLAUDE_TO_OPENCODE_TOOLS[claudeTool]) return CLAUDE_TO_OPENCODE_TOOLS[claudeTool];
+  if (claudeTool.startsWith('mcp__')) return claudeTool;
+  return claudeTool.toLowerCase();
+}
+
+/**
+ * Command → OpenCode flat command (gsd-core convertClaudeToOpencodeFrontmatter,
+ * commands branch, bin/install.js:7209-7365):
+ *  - `name:` removed — OpenCode uses the filename (:7290-7293)
+ *  - `model:` removed — OpenCode rejects Claude aliases and `inherit` (:7295-7300)
+ *  - `allowed-tools` list → `tools:` map of `<mapped-name>: true` (:7348-7353)
+ *  - every other field kept verbatim. No adapter header: tool names are mapped
+ *    directly and OpenCode has native `question` and `task` tools.
+ */
+function convertCommandToOpencodeCommand(content) {
+  const { frontmatter, body } = splitFrontmatter(content);
+  if (frontmatter === null) return content;
+
+  const kept = [];
+  const tools = frontmatterList(frontmatter, 'allowed-tools');
+  let inToolsList = false;
+  for (const line of frontmatter.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('allowed-tools:')) { inToolsList = true; continue; }
+    if (inToolsList) {
+      if (trimmed.startsWith('- ') || trimmed === '') continue;
+      inToolsList = false;
+    }
+    if (trimmed.startsWith('name:') || trimmed.startsWith('model:')) continue;
+    kept.push(line);
+  }
+  if (tools.length > 0) {
+    kept.push('tools:');
+    for (const tool of tools) kept.push(`  ${opencodeToolName(tool)}: true`);
+  }
+  return `---\n${kept.join('\n').trim()}\n---${body}`;
+}
+
+// Dispatch ────────────────────────────────────────────────────────────────────
+
+const COMMAND_WRITERS = {
+  'claude-command': (content) => content,
+  'codex-skill': convertCommandToCodexSkill,
+  'opencode-command': convertCommandToOpencodeCommand,
+  'cursor-skill': convertCommandToCursorSkill,
+};
+
+/** Reshape an (already rewritten) command file into the runtime's artifact. */
+function convertCommand(content, stem, rt) {
+  const writer = COMMAND_WRITERS[rt.commandWriter];
+  if (!writer) throw new Error(`Unknown commandWriter: ${rt.commandWriter}`);
+  return writer(content, stem, rt);
 }
 
 // ─── Destination layout ──────────────────────────────────────────────────────
@@ -538,6 +743,17 @@ module.exports = {
   stampRuntime,
   rewriteContent,
   INCLUDE_LIST_INTRO,
+  splitFrontmatter,
+  frontmatterField,
+  frontmatterList,
+  yamlQuote,
+  yamlIdentifier,
+  getCodexSkillAdapterHeader,
+  getCursorSkillAdapterHeader,
+  convertCommandToCodexSkill,
+  convertCommandToCursorSkill,
+  convertCommandToOpencodeCommand,
+  opencodeToolName,
   convertCommand,
   commandDestPath,
   isOwnedPath,
