@@ -764,7 +764,7 @@ done < <(awk '/^## Core Features$/{f=1; next} /^## /{f=0} f && /^### /{name=subs
 [ -z "$METRIC_FAILS" ] && echo "METRIC-COVERAGE: PASS (every Core FEAT-ID has ≥1 metric)" || echo "METRIC-COVERAGE: FAIL —$METRIC_FAILS"
 ```
 
-**Depth check 5 — Scripted SYN-04 diff.** Extract the feature bullets from BRIEF.md and assert each maps to a FEAT entry in product-features.md. The source list is the `## Feature Direction` section when present; otherwise, feature-shaped lines in the brief body above `## Open Questions` (bullet lines of the shape `- **{Name}**: {description}`; the scan stops at `## Open Questions` so the conditional `## Feature Direction` and `## Design System` sections appended after it are never misread as feature bullets):
+**Depth check 5 — Scripted SYN-04 diff.** Extract the feature bullets from BRIEF.md and assert each maps to a FEAT entry in product-features.md. The source list is the `## Feature Direction` section when present; otherwise, feature-shaped lines in the brief body above `## Open Questions` (bullet lines of the shape `- **{Name}**: {description}`; the scan stops at `## Open Questions` so the conditional `## Feature Direction`, `## Design System`, and `## Source Materials` sections appended after it are never misread as feature bullets):
 
 ```bash
 BRIEF_FEATURES=$(awk '/^## Feature Direction/{f=1; next} /^## /{f=0} f' .n2b/BRIEF.md | sed -n 's/^[-*]\{0,1\} *\*\*\([^*][^*]*\)\*\*.*/\1/p')

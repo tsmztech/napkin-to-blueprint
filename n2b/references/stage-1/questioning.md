@@ -16,6 +16,8 @@ Every gap you leave becomes a guess an agent makes later. The cost compounds.
 
 **Trust downstream** — Stages 2-3 handle features and specs; Stage 4 handles technology; Stage 1 handles vision and context. The brief is the only moment a human is in the loop — trust downstream to do its work, never to ask a question you left open.
 
+**Record gaps, never fill them.** Other tools in this space move fast by guessing a plausible default and tagging it for review. n2b deliberately does not: Stage 1 records an unknown as *asked-and-unknown* and leaves the value blank. This is a division of labor, not caution — Stage 2 has a research pass that fills gaps with evidence, and Stage 4 owns every technology decision. A guess made here would pre-empt both with something the user never said. The brief's job is to make every gap visible; downstream's job is to close it.
+
 **User drives exit** — no artificial caps; the user decides when they're done via the fork.
 
 </philosophy>
@@ -60,14 +62,19 @@ Use AskUserQuestion to help users think by presenting concrete options to react 
 - Reference something specific from their earlier response
 - Options should be concrete interpretations, not generic categories
 
+**Batch interpretation checks.** When the coverage map leaves several dimensions at `implied`, put their interpretation checks into a *single* AskUserQuestion call (the tool takes up to 4 questions per call) rather than spending one exchange on each. One screen of "here's how I read these — correct any that are off" beats four rounds of confirmation, and it is the main reason a rich pasted brief should feel like a quick check rather than an interview. Only `implied` checks batch this way; `missing` dimensions get real, thread-following questions.
+
+**Lead on `implied`, don't lead on `missing`.** An interpretation check is leading by design — you are checking your read. For an `implied` dimension, put your interpretation *first* so confirming is one click. For a `missing` dimension you have no read to check, so options must not presume an answer the user hasn't hinted at.
+
 **Good options:**
 - Interpretations of what they might mean
 - Specific examples to confirm or deny
 - Concrete choices that reveal priorities
+- On an `implied` dimension: your best interpretation as the first option
 
 **Bad options:**
 - Generic categories ("Technical", "Business", "Other")
-- Leading options that presume an answer
+- On a `missing` dimension: leading options that presume an answer
 - Options that don't connect to what the user said
 
 **Example — vague answer:**
@@ -107,7 +114,7 @@ Each dimension carries two independent readings:
 **Coverage** — where the information came from. Set by the silent intake triage on the first substantive input, updated as the conversation moves:
 
 - **given** — the user explicitly answered this. Never ask about it again; it may only be reflected back in the show-back for confirmation.
-- **implied** — inferable but not stated. At most one confirming question, phrased as an interpretation check ("You mentioned pharmacists approving orders — so there are at least two roles, pharmacist and customer?"), ideally via AskUserQuestion with concrete options.
+- **implied** — inferable but not stated. At most one confirming question, phrased as an interpretation check ("You mentioned pharmacists approving orders — so there are at least two roles, pharmacist and customer?"), ideally via AskUserQuestion with concrete options. Several `implied` dimensions are checked together in one call — see `<using_askuserquestion>`.
 - **missing** — no signal yet. Eligible for real questioning, deepest-first.
 
 ```

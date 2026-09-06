@@ -11,7 +11,7 @@ allowed-tools:
 Initialize a new n2b project by exploring the user's vision through open, confidence-based conversation.
 
 **Creates:**
-- `.n2b/BRIEF.md` — structured project brief with YAML frontmatter and sections: Vision, Problem Statement, Target Users & Roles, The Experience, Business Context, Scale & Non-Functional Expectations, Ecosystem & Integrations, Success Criteria, Constraints, Open Questions, plus conditional Feature Direction and Design System sections
+- `.n2b/BRIEF.md` — structured project brief with YAML frontmatter and sections: Vision, Problem Statement, Target Users & Roles, The Experience, Business Context, Scale & Non-Functional Expectations, Ecosystem & Integrations, Success Criteria, Constraints, Open Questions, plus conditional Feature Direction, Design System, and Source Materials sections
 - `.n2b/config.json` — pipeline preferences (model_profile, spec_review, design_system_source)
 - `.n2b/tracking/` — complete tracking directory with PIPELINE.md, STATE.md, and stage tracking files
 

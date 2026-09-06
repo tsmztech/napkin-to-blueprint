@@ -77,7 +77,7 @@ n2b sits *upstream* of the popular spec-driven tools — it works with them, not
 
 ### Stage 1 — Intake · `/n2b:s1-init`
 
-**What you do:** have a conversation. n2b interviews you about your idea — vision, problem, target users, the experience you imagine, business context, scale expectations, integrations, constraints. It asks until it's confident, not until a form is filled; vague answers get follow-ups, and it tells you what it still doesn't understand.
+**What you do:** have a conversation. n2b interviews you about your idea — vision, problem, target users, the experience you imagine, business context, scale expectations, integrations, constraints. It asks until it's confident, not until a form is filled; vague answers get follow-ups, and it tells you what it still doesn't understand. Already have notes or a brief? Paste them or point n2b at the file — it reads them first, only asks about what's missing, and keeps the original under `.n2b/inputs/source/` so nothing you wrote is lost.
 
 **What you get:** `.n2b/BRIEF.md` — a validated, structured project brief — plus pipeline tracking in `.n2b/tracking/`.
 
