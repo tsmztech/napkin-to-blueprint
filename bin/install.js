@@ -600,14 +600,6 @@ function collectFiles(dir, base = '') {
   return files.sort();
 }
 
-function removeEmptyDirs(dir) {
-  if (!fs.existsSync(dir)) return;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) removeEmptyDirs(path.join(dir, entry.name));
-  }
-  if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
-}
-
 // ─── Install pipeline: produce map → write → prune ───────────────────────────
 
 /** Read the source tree once: six commands + the n2b payload. */
@@ -661,16 +653,22 @@ function installRuntime(source, targetDir, rt) {
   }
 
   let removed = 0;
+  const touchedDirs = new Set();
   for (const rel of collectFiles(root)) {
     if (isOwnedPath(rel, rt) && !map.has(rel)) {
       fs.unlinkSync(path.join(root, rel));
+      touchedDirs.add(path.posix.dirname(rel));
       removed++;
     }
   }
-  removeEmptyDirs(path.join(root, PAYLOAD_DIR));
-  // Prune empty command dirs we own; leave the shared surface dir itself alone.
-  for (const rel of new Set([...map.keys()].map((k) => path.posix.dirname(k)))) {
-    if (rel !== '.' && isOwnedPath(`${rel}/`, rt)) removeEmptyDirs(path.join(root, rel));
+  // Drop directories left empty by pruning, walking up only through
+  // n2b-owned paths; the shared surface dir (skills/, commands/) is never removed.
+  for (let dir of touchedDirs) {
+    while (dir !== '.' && isOwnedPath(`${dir}/`, rt)) {
+      const abs = path.join(root, dir);
+      if (fs.existsSync(abs) && fs.readdirSync(abs).length === 0) fs.rmdirSync(abs);
+      dir = path.posix.dirname(dir);
+    }
   }
 
   return { root, commandFiles, payloadFiles, removed };
