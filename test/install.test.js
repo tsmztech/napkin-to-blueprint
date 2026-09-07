@@ -157,7 +157,7 @@ test('R1 rewritePaths: project-relative forms only; URLs and anchored paths unto
 
 // ─── R2 includes ─────────────────────────────────────────────────────────────
 
-test('R2 rewriteIncludes: @ block → read list; inline @ dropped; @AGENTS.md untouched', () => {
+test('R2 rewriteIncludes: @ block → read list; inline @./ → project-relative path; @AGENTS.md untouched', () => {
   const input = [
     '<execution_context>',
     '@./.codex/n2b/workflows/stage-1/init.md',
@@ -180,8 +180,8 @@ test('R2 rewriteIncludes: @ block → read list; inline @ dropped; @AGENTS.md un
     '- .codex/n2b/templates/stage-1/brief.md',
     '</execution_context>',
     '',
-    'Execute the init workflow from ./.codex/n2b/workflows/stage-1/init.md end-to-end.',
-    '| **Screen** | `./.codex/n2b/references/x.md` |',
+    'Execute the init workflow from .codex/n2b/workflows/stage-1/init.md end-to-end.',
+    '| **Screen** | `.codex/n2b/references/x.md` |',
     '```markdown',
     '@AGENTS.md',
     '```',

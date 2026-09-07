@@ -253,8 +253,9 @@ const INCLUDE_LIST_INTRO = 'Before doing anything else, read these files in full
  * OpenCode's `@file` handling resolves relative to the commands dir and has
  * bitten gsd-core twice (#2376, #2831). Rather than inherit host-specific `@`
  * semantics, every contiguous block of `@./` lines becomes a prose "read
- * these files" list, and inline `@./.<dir>/` mentions lose their `@`.
- * Paths are listed project-relative (after R1). `@AGENTS.md`-style lines
+ * these files" list, and inline `@./.<dir>/` mentions become the same
+ * project-relative path form as the list entries (`@./` dropped, so
+ * `@./.codex/n2b/x.md` → `.codex/n2b/x.md`). `@AGENTS.md`-style tokens
  * (no `./`) are untouched.
  */
 function rewriteIncludes(content, rt) { // eslint-disable-line no-unused-vars
@@ -274,7 +275,7 @@ function rewriteIncludes(content, rt) { // eslint-disable-line no-unused-vars
     out.push(INCLUDE_LIST_INTRO);
     for (const p of block) out.push(`- ${p}`);
   }
-  return out.join('\n').replace(/@(?=\.\/\.[A-Za-z])/g, '');
+  return out.join('\n').replace(/@\.\/(?=\.[A-Za-z])/g, '');
 }
 
 /**
