@@ -196,6 +196,8 @@ npm test                                                       # installer tests
 
 Everything is Markdown — commands, workflows, agents, and templates are all `.md` files. After editing source, re-run the installer before testing. Claude Code output is a verbatim copy of source and is pinned by `test/fixtures/claude-baseline.json`; after an intentional source change, refresh it with `node test/install.test.js --update-baseline`.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development loop and PR checklist, [CHANGELOG.md](CHANGELOG.md) for release notes, and [SECURITY.md](SECURITY.md) for how to report a vulnerability.
+
 ## License
 
 MIT © [Tapas Mukherjee](https://github.com/tsmztech) — see [LICENSE](LICENSE).

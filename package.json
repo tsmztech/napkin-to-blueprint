@@ -15,6 +15,9 @@
   ],
   "author": "Tapas Mukherjee",
   "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tsmztech/napkin-to-blueprint.git"

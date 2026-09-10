@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in the pipeline or the installer is not working as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before pasting output, redact anything private: usernames in paths, API keys, and product details you do not want public.
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Claude Code
+        - Codex
+        - OpenCode
+        - Cursor
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: n2b version
+      description: From `.n2b/config.json` (`n2b_version`) or the version you installed with `npx napkin-to-blueprint@<version>`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command or stage
+      placeholder: "/n2b:s3-specify (or $n2b-s3-specify, /n2b-s3-specify)"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. npx napkin-to-blueprint --claude
+        2. /n2b:s1-init
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of the status command (optional)
+      description: Paste the output of `/n2b:status` (or the runtime's equivalent) if relevant.
+      render: text
