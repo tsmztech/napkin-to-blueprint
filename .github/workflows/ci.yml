@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # README promises Node >= 16 for the installer; cover every LTS line from there.
+        node: [16, 18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      # Zero dependencies: nothing to install before the tests run.
+      - run: npm test
+
+  install-smoke:
+    # Exercises the real ship path: npm pack -> global install of the tarball ->
+    # `n2b --all` into a scratch project -> the four runtime trees exist.
+    name: install smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Pack
+        run: npm pack --pack-destination "$RUNNER_TEMP"
+      - name: Install the tarball globally
+        run: npm install -g "$RUNNER_TEMP"/napkin-to-blueprint-*.tgz
+      - name: Install into a scratch project (all runtimes)
+        run: |
+          mkdir -p "$RUNNER_TEMP/scratch"
+          n2b --all --target "$RUNNER_TEMP/scratch"
+      - name: Verify the installed trees
+        working-directory: ${{ runner.temp }}/scratch
+        run: |
+          for f in \
+            .claude/commands/n2b/status.md .claude/n2b/workflows/status.md \
+            .codex/skills/n2b-status/SKILL.md .codex/n2b/workflows/status.md \
+            .opencode/commands/n2b-status.md .opencode/n2b/workflows/status.md \
+            .cursor/skills/n2b-status/SKILL.md .cursor/n2b/workflows/status.md; do
+            test -f "$f" || { echo "missing $f"; exit 1; }
+          done
+          # Non-Claude trees must not leak Claude-specific paths or command forms.
+          if grep -rlE '\.claude/|/n2b:|@\./' .codex .opencode .cursor; then
+            echo "Claude-specific tokens leaked into a non-Claude tree"; exit 1
+          fi
+          echo "all runtime trees present and clean"
