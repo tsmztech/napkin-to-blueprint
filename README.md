@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/napkin-to-blueprint)](https://www.npmjs.com/package/napkin-to-blueprint)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![works with Claude Code · Codex · OpenCode · Cursor](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20OpenCode%20%C2%B7%20Cursor-d97757)](#quickstart)
+[![works with Claude Code · Cursor · OpenCode · Codex (experimental)](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20OpenCode%20%C2%B7%20Codex%20(experimental)-d97757)](#quickstart)
 
 <!-- DEMO GIF: 90-second terminal recording (idea in → blueprint + exports out) goes here -->
 
@@ -35,7 +35,7 @@ Flags combine (`--claude --cursor`). Installs are project-local: n2b's commands,
 | Runtime | Installed to | Start here | Next stages |
 |---------|--------------|------------|-------------|
 | Claude Code | `./.claude/` | `/n2b:s1-init` | `/n2b:s2-define` … `/n2b:status` |
-| Codex | `./.codex/` | `$n2b-s1-init` | `$n2b-s2-define` … `$n2b-status` |
+| Codex *(experimental)* | `./.codex/` | `$n2b-s1-init` | `$n2b-s2-define` … `$n2b-status` |
 | OpenCode | `./.opencode/` | `/n2b-s1-init` | `/n2b-s2-define` … `/n2b-status` |
 | Cursor | `./.cursor/` | `/n2b-s1-init` (or mention `n2b-s1-init`) | `/n2b-s2-define` … `/n2b-status` |
 
@@ -170,7 +170,7 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 
 ## Requirements
 
-- One of: [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex) (CLI ≥ 0.130.0 — earlier versions can list skills twice), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com)
+- One of: [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex) (CLI ≥ 0.130.0 — earlier versions can list skills twice; **experimental**: not yet verified against a live Codex CLI, and Codex's current docs list `.agents/skills/` as the project skill root rather than `.codex/skills/` — if `$n2b-*` does not appear, try `mv .codex/skills .agents/skills` and [report it](https://github.com/tsmztech/napkin-to-blueprint/issues)), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com)
 - Node.js ≥ 16 (used only by the installer — zero npm dependencies)
 
 On Codex, OpenCode, and Cursor the pipeline runs every agent on the host's configured default model; the `model_profile` setting only takes effect on Claude Code.
