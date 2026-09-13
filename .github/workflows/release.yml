@@ -1,0 +1,123 @@
+name: Release
+
+# Publishes the version already in package.json to npm via OIDC trusted
+# publishing (no NPM_TOKEN) and creates the matching GitHub release.
+#
+# Flow: bump version in a normal PR (package.json + n2b/templates/config.json +
+# CHANGELOG.md), merge to main, then run this workflow from main with the same
+# version string. Use dry_run first to rehearse without publishing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (must equal package.json version, e.g. 0.2.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run: run tests and npm publish --dry-run only (no publish, no tag, no release)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: publish ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm-publish
+    permissions:
+      contents: write   # create the tag + GitHub release
+      id-token: write   # npm OIDC trusted publishing + provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # npm >= 11.5.1 is required for trusted publishing; Node 24 bundles it.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! echo "$VERSION" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo "::error::'$VERSION' is not a plain X.Y.Z version"; exit 1
+          fi
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::error::Releases must run from main (got $GITHUB_REF_NAME)"; exit 1
+          fi
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$PKG" != "$VERSION" ]; then
+            echo "::error::package.json is $PKG but you asked for $VERSION — bump it in a PR first"; exit 1
+          fi
+          TPL=$(node -p "require('./n2b/templates/config.json').n2b_version")
+          if [ "$TPL" != "$VERSION" ]; then
+            echo "::error::n2b/templates/config.json n2b_version is $TPL, expected $VERSION"; exit 1
+          fi
+          if ! grep -qE "^## \[$VERSION\] - [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION] - YYYY-MM-DD' section"; exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists"; exit 1
+          fi
+          if npm view "napkin-to-blueprint@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::napkin-to-blueprint@$VERSION is already on npm"; exit 1
+          fi
+          echo "Version $VERSION OK"
+
+      - name: Test
+        run: npm test
+
+      - name: Dry-run publish
+        run: npm publish --dry-run --access public
+
+      - name: Publish to npm
+        if: ${{ !inputs.dry_run }}
+        run: npm publish --provenance --access public
+
+      - name: Create GitHub release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Release notes = this version's CHANGELOG section (between its heading and the next one).
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { on=1; next }
+            on && (/^## \[/ || /^\[[^]]+\]: https?:/) { exit }
+            on { print }
+          ' CHANGELOG.md > /tmp/notes.md
+          printf '\n---\nInstall: `npx napkin-to-blueprint@%s`\nnpm: https://www.npmjs.com/package/napkin-to-blueprint/v/%s\n' "$VERSION" "$VERSION" >> /tmp/notes.md
+          gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            --notes-file /tmp/notes.md
+
+      - name: Summary
+        env:
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "## Release v$VERSION"
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "**DRY RUN** — tests and \`npm publish --dry-run\` passed; nothing published."
+            else
+              echo "- Published \`napkin-to-blueprint@$VERSION\` with provenance"
+              echo "- Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VERSION"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

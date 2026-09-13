@@ -35,6 +35,24 @@ Commit messages follow the existing style: `feat:`, `fix:`, `docs:`, `test:`, `c
 
 Each pipeline stage passes through completeness audits and fidelity gates before it advances. When changing a stage, preserve its gate contract (for example acceptance criteria carried verbatim, counts reconciled).
 
+## Releasing (maintainer)
+
+Releases are published from GitHub Actions, never from a laptop. npm authenticates the
+workflow through OIDC trusted publishing, so there is no npm token anywhere.
+
+1. Open a PR that bumps the version in `package.json` and `n2b/templates/config.json`
+   (`n2b_version`), turns the `[Unreleased]` section of `CHANGELOG.md` into
+   `## [X.Y.Z] - YYYY-MM-DD`, and refreshes the baseline (`node test/install.test.js
+   --update-baseline`). Merge it.
+2. On GitHub go to **Actions → Release → Run workflow**, branch `main`, enter the same
+   version, tick **dry_run**. This runs the tests and `npm publish --dry-run` only.
+3. Run it again without dry_run. The workflow publishes to npm with provenance, tags
+   `vX.Y.Z`, and creates the GitHub release using that version's changelog section.
+
+The workflow refuses to run if the version does not match `package.json` and the config
+template, if the changelog has no section for it, or if the tag or npm version already
+exists.
+
 ## Reporting problems
 
 - Bugs and feature requests: open an issue using the templates.
