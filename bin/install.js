@@ -107,7 +107,7 @@ runtime flag an interactive picker appears (Claude Code is used when no
 terminal is attached).
 
   --claude        Claude Code  → <dir>/.claude/
-  --codex         Codex        → <dir>/.codex/
+  --codex         Codex        → <dir>/.codex/   (experimental)
   --opencode      OpenCode     → <dir>/.opencode/
   --cursor        Cursor       → <dir>/.cursor/
   --all           all four runtimes
