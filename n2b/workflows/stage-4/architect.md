@@ -27,7 +27,7 @@ Before starting, read:
 - `.claude/n2b/references/ui-brand.md` — banner format (40 `━` characters, `n2b > {BANNER NAME}` prefix), the registered banner names, and status symbols (`✓` = complete, `○` = pending/in-progress)
 - `.claude/n2b/references/tracking-protocol.md` — all transition types; follow them as a checklist at each state change
 - `.claude/n2b/references/pipeline-gatekeeper.md` — entry gate (Check 1-3 flow, error formats, stage registry)
-- `.claude/n2b/references/model-profiles.md` — Per-Agent Model Mapping table and resolution logic for the Agent tool's `model` parameter
+- `.claude/n2b/references/model-profiles.md` — model routing: the `n2b-model-resolver` block, the rendered role table, and the per-runtime Transport Rules (data: `.claude/n2b/references/model-catalog.json` and `.n2b/config.json` `model_tiers`)
 
 Gate naming: this workflow has three gates — **Gate A — Metric Verification** (tracking identifiers `stage-4-gate-a-*`), **Gate B — Landscape Structural Check** (`stage-4-gate-b-*`), and **Gate 4 — Architecture Validation** (`stage-4-gate-4-*`; the final gate keeps its pinned name Gate 4). Registered pass banners per ui-brand.md: `GATE A PASSED`, `GATE B PASSED`/`GATE B FAILED`, `GATE 4 PASSED`/`GATE 4 FAILED`.
 
@@ -294,15 +294,35 @@ Create the output directory:
 mkdir -p .n2b/architecture
 ```
 
-**Model resolution (once for this workflow):** read the model profile from config —
+**Model resolution (once for this workflow):** run the `n2b-model-resolver` block below — owned by `model-profiles.md` (Resolution Logic) and reproduced here verbatim. It prints `MODEL_PROFILE`, `MODEL_PROVIDER`, `RUNTIME`, `TRANSPORT`, and one line per agent role. Every spawn in this workflow takes its model from its role's line — Stage 4 uses `profile-analyst`, `technical-researcher`, `feasibility-planner`, `technical-architect`, `schema-designer` — and applies it per the **Transport Rules** table for `RUNTIME` in `model-profiles.md` (on Claude Code: pass the ID as the Agent tool's `model` parameter). `(omit)` means pass **no** `model` parameter — never the literal string, never a guess. Never hardcode a model name in this workflow and never look a model up by hand.
 
 ```bash
-MODEL_PROFILE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('model_profile','balanced'))" 2>/dev/null || echo "balanced")
-case "$MODEL_PROFILE" in quality|balanced|budget|inherit) ;; *) MODEL_PROFILE="balanced" ;; esac
-echo "MODEL_PROFILE=$MODEL_PROFILE"
+# n2b-model-resolver — resolve every agent role's model once per workflow (model-profiles.md, Resolution Logic). Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - <<'PYEOF'
+import json, re
+cfg = {}
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: pass
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+profile = cfg.get('model_profile', 'balanced')
+if profile not in cat['profiles']: profile = 'balanced'
+provider = cfg.get('model_provider')
+tiers = cfg.get('model_tiers')
+if not isinstance(tiers, dict):  # legacy config: materialize on the fly from the runtime's default provider
+    if provider != 'inherit' and provider not in cat['providers']: provider = cat['runtimes'][runtime]['defaultProvider']
+    tiers = cat['providers'].get(provider) or {}
+if profile == 'inherit' or provider == 'inherit': tiers = {}
+print(f"MODEL_PROFILE={profile} MODEL_PROVIDER={provider or 'inherit'} RUNTIME={runtime} TRANSPORT={cat['runtimes'][runtime]['transport']}")
+for role, row in cat['roles'].items():
+    tier = None if profile == 'inherit' else row[profile]
+    while tier and not (tiers.get(tier) or {}).get('model'):
+        tier = cat['fallback'].get(tier)
+    entry = (tiers.get(tier) or {}) if tier else {}
+    print(f"{role}: model={entry.get('model') or '(omit)'} reasoning_effort={entry.get('reasoning_effort') or '(omit)'}")
+PYEOF
 ```
-
-If MODEL_PROFILE is `inherit`, pass **no** `model` parameter on any spawn in this workflow — the host's default model applies (model-profiles.md, `inherit` profile). Otherwise resolve each Stage 4 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Profile Analyst**, **Technical Researcher**, **Feasibility Planner**, **Technical Architect**, **Schema Designer**) and pass the resolved model as the Agent tool's `model` parameter on every spawn below — the mapping table is the single source; never hardcode a model name in this workflow.
 
 Display the Pass A banner and the pipeline flow diagram:
 
@@ -338,7 +358,7 @@ Spawn the Profile Analyst:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-4/profile-analyst.md` and execute your complete task as described. Write your output to `.n2b/architecture/technical-profile.md`. Do not ask for clarification — work autonomously."
 - Tools: Read, Bash
-- Model: resolved from the **Profile Analyst** (Stage 4) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `profile-analyst` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 90
 
 After the Profile Analyst completes, verify the output exists and is non-empty:
@@ -514,7 +534,7 @@ Spawn the Technical Researcher:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-4/technical-researcher.md` and execute your complete task as described. Read the verified technical profile at `.n2b/architecture/technical-profile.md` and derive the active decision-area set from the registry's activation mapping in the decision guide your contract references. Research with WebSearch/WebFetch first; if web tooling is unavailable or a query fails, fall back to model knowledge and mark each affected Sources cell `knowledge-based — {reason}` and log the fallback in your `## 4. Research Log` — never fabricate URLs. Write your output to `.n2b/architecture/technology-landscape.md`. Do not ask for clarification — work autonomously."
 - Tools: Read, Bash, WebSearch, WebFetch, Write
-- Model: resolved from the **Technical Researcher** (Stage 4) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `technical-researcher` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 130
 
 After the Technical Researcher completes, verify the output exists and is non-empty:
@@ -694,7 +714,7 @@ Spawn the Feasibility Planner:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-4/feasibility-planner.md` and execute your complete task as described. Read the technical profile at `.n2b/architecture/technical-profile.md` and the technology landscape at `.n2b/architecture/technology-landscape.md` — cite landscape options by name in your `**Candidate Approaches:**` fields. Read the Stage 3 specifications directly from `.n2b/specifications/` and produce one `### FEAT-NN — {Feature Name}` assessment per FEAT-* folder. Write your output to `.n2b/architecture/technical-feasibility.md`. Do not ask for clarification — work autonomously."
 - Tools: Read, Bash, Write
-- Model: resolved from the **Feasibility Planner** (Stage 4) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `feasibility-planner` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 100
 
 After the Feasibility Planner completes, verify the output exists and is non-empty:
@@ -765,7 +785,7 @@ Spawn the Technical Architect:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-4/technical-architect.md` and execute your complete task as described. Read the three upstream inputs: the technical profile at `.n2b/architecture/technical-profile.md`, the technology landscape at `.n2b/architecture/technology-landscape.md`, and the technical feasibility assessment at `.n2b/architecture/technical-feasibility.md`. Design system: {when the passthrough exists: 'the user-supplied design system is at `.n2b/specifications/design-system/` — read every file in it; supplied values are mapped to code as-is, never redesigned' / otherwise: 'this package has no design system (`design_system_source: none`) — Section 9 opens by stating the package is design-agnostic and drives styling/component decisions from product needs alone'}. The landscape's `## 1. Research Scope` table is the authoritative active-area set — consume it, never re-decide activation. For Section 11's role mapping, additionally read only the `## Access Matrix` section of `.n2b/features/user-persona.md` as your contract describes. If `.n2b/tracking/stages/s4-architect/prior-adr-register.md` exists, read it before assigning any ADR numbers and apply the ID Stability rules from your contract. Write your output to `.n2b/architecture/technical-architecture.md`. Do not ask for clarification — work autonomously."
 - Tools: Read, Write
-- Model: resolved from the **Technical Architect** (Stage 4) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `technical-architect` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 150
 
 After the Technical Architect completes, verify the output exists and is non-empty:
@@ -836,7 +856,7 @@ Spawn the Schema Designer:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-4/schema-designer.md` and execute your complete task as described. Read the Stage 3 specifications directly from `.n2b/specifications/`, and read the technical architecture at `.n2b/architecture/technical-architecture.md` for the database and ORM selections (Section 3) and the authentication and access decisions (Section 11). Write your output to `.n2b/architecture/database-schema.md`. Do not ask for clarification — work autonomously."
 - Tools: Read, Write
-- Model: resolved from the **Schema Designer** (Stage 4) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `schema-designer` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 100
 
 After the Schema Designer completes, verify the output exists and is non-empty:
@@ -1431,7 +1451,7 @@ Warnings:
 - Gate B (landscape structural check) is deterministic bash between Pass B and Pass C: file + frontmatter, Research Scope ≥ 11 rows, a `### {Area}` heading per Research Scope row, ≥ 3 option rows per area, no empty Sources cell (`knowledge-based — {reason}` passes) — structure only, never validating web claims; failure fires gate-fail with `stage-4-gate-b-failed`
 - Gate 4 runs all 8 categories in a single bash block with HARD/SOFT accounting and per-category evidence in STAGE.md; awk section ranges follow the 14-section numbering (Cat 2 `## 6.`→`## 7.`, Cat 3 `## 5.`→`## 6.`, Cat 4 `## 7.`→`## 8.`, Cat 5 `## 9.`→`## 10.`, Cat 7 `## 14.`); Cat 1 loops sections 1–14; Cat 8 loops schema sections 1–9; no blocklist regex exists anywhere in this workflow
 - Gate 4 Cat 6 counts `^### FEAT-` headings in technical-feasibility.md against `ls -d .n2b/specifications/FEAT-*/` folder counts — never against product-features.md headings; Cat 7 enforces ADR count, unique Category count, and `Choose instead when` count each ≥ the Research Scope row count
-- Spawn table: Profile Analyst (Read, Bash, maxTurns 90), Technical Researcher (Read, Bash, WebSearch, WebFetch, Write, maxTurns 130), Feasibility Planner (Read, Bash, Write, maxTurns 100), Technical Architect (Read, Write, maxTurns 150), Schema Designer (Read, Write, maxTurns 100) — contracts at `.claude/n2b/agents/stage-4/{name}.md`; every spawn passes a `model` resolved at Step 2 from MODEL_PROFILE (`.n2b/config.json` `model_profile`, default `balanced`) via model-profiles.md's Per-Agent Model Mapping — no hardcoded model names
+- Spawn table: Profile Analyst (Read, Bash, maxTurns 90), Technical Researcher (Read, Bash, WebSearch, WebFetch, Write, maxTurns 130), Feasibility Planner (Read, Bash, Write, maxTurns 100), Technical Architect (Read, Write, maxTurns 150), Schema Designer (Read, Write, maxTurns 100) — contracts at `.claude/n2b/agents/stage-4/{name}.md`; every spawn takes its model from the `n2b-model-resolver` output at Step 2 (`.n2b/config.json` `model_profile` + `model_tiers`, catalog roles/fallback) applied per model-profiles.md's Transport Rules — no hardcoded model names
 - Pass D's spawn prompt names the three upstream inputs (profile, landscape, feasibility) plus the design-system posture (passthrough directory when present, design-agnostic statement otherwise); Pass E's prompt points the Schema Designer at architecture Section 3 (Database/ORM) and Section 11 (authentication and access)
 - Missing pass output fires gate-fail with `stage-4-pass-{a|b|c|d|e}-failed` and the branded failure display
 - stage-complete 4-step sequence on Gate 4 pass: (1) s4-architect/STAGE.md sealed with all evidence + Performance (`Agents spawned: 5`) + Output (5 documents); (2) PIPELINE.md `pipeline_status: blueprint-complete` + Stage 4 ticked + `← NEXT` on the Stage 5 line + Stage History entry with Gate A/Gate B/Gate 4 evidence lines and `Output: .n2b/architecture/ (5 documents)` + Artifact Lineage Stage 4 Mapping column, then MANIFEST.md gains the five architecture rows (fingerprints `shasum -a 256 | cut -c1-12`, ID coverage `FEAT-01..NN` for feasibility and `ADR-001..NNN` for the architecture, `—` elsewhere, `package_version` +1); (3) STATE.md final body with Next action `/n2b:s5-export (optional — the blueprint package is complete)`; (4) PACKAGE READY block

@@ -365,7 +365,7 @@ test('--claude output matches test/fixtures/claude-baseline.json', () => {
 // ─── Integration: non-Claude runtimes ────────────────────────────────────────
 
 for (const id of ['codex', 'opencode', 'cursor']) {
-  test(`--${id}: clean tree, six command artifacts, payload mirrors source, stamp set`, () => {
+  test(`--${id}: clean tree, seven command artifacts, payload mirrors source, stamp set`, () => {
     const rt = RUNTIMES[id];
     const dir = tmpDir();
     installOk([`--${id}`, '--target', dir]);
@@ -387,7 +387,7 @@ for (const id of ['codex', 'opencode', 'cursor']) {
     assert.ok(init.includes('model_profile: "inherit"'), 'init.md Step 6.5 must keep the inherit branch');
 
     const stems = fileList(path.join(REPO, 'commands', 'n2b')).map((f) => f.slice(0, -3));
-    assert.strictEqual(stems.length, 6);
+    assert.strictEqual(stems.length, 7);
     for (const stem of stems) {
       const dest = commandDestPath(stem, rt);
       assert.ok(files.includes(dest), `missing ${dest}`);
@@ -402,7 +402,7 @@ for (const id of ['codex', 'opencode', 'cursor']) {
     const payload = files.filter((f) => f.startsWith('n2b/')).map((f) => f.slice(4));
     assert.deepStrictEqual(payload, fileList(path.join(REPO, 'n2b')));
     assert.ok(fs.readFileSync(path.join(root, 'n2b/references/model-profiles.md'), 'utf8').startsWith(`<!-- n2b-runtime: ${id} -->\n`));
-    assert.strictEqual(files.length, 96);
+    assert.strictEqual(files.length, 99);
   });
 }
 
@@ -412,7 +412,7 @@ test('buildInstallMap is deterministic and keyed by destination path', () => {
     const a = buildInstallMap(source, rt);
     const b = buildInstallMap(source, rt);
     assert.deepStrictEqual([...a.keys()], [...b.keys()]);
-    assert.strictEqual(a.size, 96);
+    assert.strictEqual(a.size, 99);
     for (const [k, v] of a) assert.strictEqual(Buffer.from(v).equals(Buffer.from(b.get(k))), true, k);
   }
 });
@@ -481,6 +481,255 @@ test('--help exits 0 with usage; unknown flag exits 1 with usage; each runtime p
   const dir = tmpDir();
   const all = installOk(['--all', '--target', dir]);
   for (const id of RUNTIME_ORDER) assert.ok(all.stdout.includes(RUNTIMES[id].nextStep), `missing next step for ${id}`);
+});
+
+// ─── Model catalog / routing (model-profiles Phase 1) ────────────────────────
+
+const CATALOG_PATH = path.join(REPO, 'n2b', 'references', 'model-catalog.json');
+const PROFILES_PATH = path.join(REPO, 'n2b', 'references', 'model-profiles.md');
+const catalog = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf8'));
+const TIERS = ['frontier', 'heavy', 'standard', 'light'];
+
+/** Every ```bash fenced block in a Markdown file whose first line contains <marker>. */
+function fencedBlocks(markdown, marker) {
+  const out = [];
+  const re = /```bash\n([\s\S]*?)\n```/g;
+  let m;
+  while ((m = re.exec(markdown)) !== null) {
+    if (m[1].split('\n')[0].includes(marker)) out.push(m[1]);
+  }
+  return out;
+}
+
+const hasPython = spawnSync('python3', ['--version'], { encoding: 'utf8' }).status === 0;
+function python(script, cwd, args = []) {
+  return spawnSync('python3', ['-', ...args], { input: script, encoding: 'utf8', cwd });
+}
+/** Strip the `python3 - … <<'PYEOF'` line and the PYEOF terminator from a resolver/materializer block. */
+function pythonBody(block) {
+  const lines = block.split('\n');
+  const start = lines.findIndex((l) => l.startsWith('python3 - '));
+  const end = lines.lastIndexOf('PYEOF');
+  assert.ok(start >= 0 && end > start, 'block must be a python3 heredoc');
+  return lines.slice(start + 1, end).join('\n');
+}
+
+test('catalog: profiles, tiers, fallback chain, 16 roles with valid tiers and existing agent contracts', () => {
+  assert.deepStrictEqual(catalog.profiles, ['quality', 'balanced', 'budget', 'inherit']);
+  assert.deepStrictEqual(catalog.tiers, TIERS);
+  for (const t of TIERS.slice(0, -1)) assert.strictEqual(catalog.fallback[t], TIERS[TIERS.indexOf(t) + 1], `fallback ${t}`);
+  assert.strictEqual(catalog.fallback.light, undefined, 'light is the end of the chain');
+  const roles = Object.keys(catalog.roles);
+  assert.strictEqual(roles.length, 16);
+  const claimed = [];
+  for (const [key, row] of Object.entries(catalog.roles)) {
+    assert.ok(/^[a-z]+(-[a-z]+)*$/.test(key), `role key ${key}`);
+    assert.strictEqual(row.label.toLowerCase().replace(/ /g, '-'), key, `label ↔ key for ${key}`);
+    assert.ok([2, 3, 4, 5].includes(row.stage), `stage for ${key}`);
+    for (const p of ['quality', 'balanced', 'budget']) assert.ok(TIERS.includes(row[p]), `${key}.${p} = ${row[p]}`);
+    assert.ok(Array.isArray(row.agents) && row.agents.length > 0, `${key} lists agent contracts`);
+    for (const rel of row.agents) {
+      assert.ok(rel.startsWith(`stage-${row.stage}/`), `${key} agent ${rel} is in its stage dir`);
+      assert.ok(fs.existsSync(path.join(REPO, 'n2b', 'agents', rel)), `${key} agent contract ${rel} missing`);
+      claimed.push(rel);
+    }
+  }
+  assert.deepStrictEqual(claimed.sort(), fileList(path.join(REPO, 'n2b', 'agents')), 'every agent contract belongs to exactly one role');
+  // decision 88: research/design roles never drop to light
+  for (const key of ['researcher', 'technical-researcher', 'schema-designer']) {
+    for (const p of ['quality', 'balanced', 'budget']) assert.notStrictEqual(catalog.roles[key][p], 'light', `${key}.${p}`);
+  }
+});
+
+test('catalog: providers are null or {model, reasoning_effort?}; runtimes match RUNTIME_ORDER and reference real providers', () => {
+  for (const [name, tiers] of Object.entries(catalog.providers)) {
+    assert.deepStrictEqual(Object.keys(tiers), TIERS, `provider ${name} tier keys`);
+    for (const [t, entry] of Object.entries(tiers)) {
+      if (entry === null) continue;
+      assert.strictEqual(typeof entry.model, 'string', `${name}.${t}.model`);
+      assert.ok(entry.model.length > 0, `${name}.${t}.model non-empty`);
+      for (const k of Object.keys(entry)) assert.ok(['model', 'reasoning_effort'].includes(k), `${name}.${t}.${k} unexpected`);
+      if (name !== 'claude-aliases') assert.ok(!/^(fable|opus|sonnet|haiku)$/.test(entry.model), `${name}.${t} must not be a Claude alias`);
+    }
+  }
+  assert.deepStrictEqual(catalog.providers['claude-aliases'], { frontier: { model: 'fable' }, heavy: { model: 'opus' }, standard: { model: 'sonnet' }, light: { model: 'haiku' } });
+  assert.deepStrictEqual(Object.keys(catalog.runtimes), RUNTIME_ORDER);
+  for (const [id, rt] of Object.entries(catalog.runtimes)) {
+    assert.ok(rt.defaultProvider === 'inherit' || catalog.providers[rt.defaultProvider], `${id}.defaultProvider`);
+    for (const p of rt.knownProviders) assert.ok(catalog.providers[p], `${id}.knownProviders ${p}`);
+    assert.strictEqual(typeof rt.transport, 'string');
+  }
+  assert.strictEqual(catalog.runtimes.claude.defaultProvider, 'claude-aliases');
+  for (const id of ['codex', 'opencode', 'cursor']) assert.strictEqual(catalog.runtimes[id].defaultProvider, 'inherit', `${id} defaults to inherit`);
+});
+
+test('catalog: contains no rewrite triggers and installs byte-identical on every runtime', () => {
+  const text = fs.readFileSync(CATALOG_PATH, 'utf8');
+  for (const bad of [/\.claude\//, /\bn2b:/, /@\.\//, /AskUserQuestion/, /n2b-runtime:/]) assert.ok(!bad.test(text), `catalog matches ${bad}`);
+  const source = readSource(REPO);
+  for (const id of RUNTIME_ORDER) {
+    const out = buildInstallMap(source, RUNTIMES[id]).get('n2b/references/model-catalog.json');
+    assert.strictEqual(Buffer.isBuffer(out) ? out.toString('utf8') : out, text, `${id} catalog differs from source`);
+  }
+});
+
+test('config template: seven registered fields in schema order, Claude alias tiers', () => {
+  const tpl = JSON.parse(fs.readFileSync(path.join(REPO, 'n2b', 'templates', 'config.json'), 'utf8'));
+  assert.deepStrictEqual(Object.keys(tpl), ['model_profile', 'model_provider', 'model_tiers', 'spec_review', 'design_system_source', 'created', 'n2b_version']);
+  assert.strictEqual(tpl.model_profile, 'balanced');
+  assert.strictEqual(tpl.model_provider, 'claude-aliases');
+  assert.deepStrictEqual(tpl.model_tiers, catalog.providers['claude-aliases']);
+  assert.strictEqual(tpl.created, '{DATE}');
+  assert.strictEqual(tpl.n2b_version, require(path.join(REPO, 'package.json')).version);
+});
+
+test('model-profiles.md rendered role table matches the catalog', () => {
+  const md = fs.readFileSync(PROFILES_PATH, 'utf8');
+  const rows = md.split('\n').filter((l) => /^\| \*\*.+\*\* \(Stage \d\) \|/.test(l));
+  assert.strictEqual(rows.length, 16, 'rendered table has 16 role rows');
+  const rendered = {};
+  for (const row of rows) {
+    const m = row.match(/^\| \*\*(.+?)\*\* \(Stage (\d)\) \| (\S+) \| (\S+) \| (\S+) \|$/);
+    assert.ok(m, `unparseable row: ${row}`);
+    rendered[m[1].toLowerCase().replace(/ /g, '-')] = { stage: Number(m[2]), quality: m[3], balanced: m[4], budget: m[5] };
+  }
+  const expected = {};
+  for (const [k, r] of Object.entries(catalog.roles)) expected[k] = { stage: r.stage, quality: r.quality, balanced: r.balanced, budget: r.budget };
+  assert.deepStrictEqual(rendered, expected, 'model-profiles.md table drifted from model-catalog.json — the catalog is the source of truth; re-render the table');
+});
+
+test('resolver and materializer blocks: owned by model-profiles.md, copied verbatim into every consumer', () => {
+  const md = fs.readFileSync(PROFILES_PATH, 'utf8');
+  const [resolver] = fencedBlocks(md, '# n2b-model-resolver');
+  const [materializer] = fencedBlocks(md, '# n2b-model-materializer');
+  assert.ok(resolver && materializer, 'model-profiles.md must define both blocks');
+  assert.ok(resolver.includes(".claude/n2b/references/model-catalog.json") && resolver.includes(".claude/n2b/references/model-profiles.md"));
+  assert.ok(!/n2b-runtime: claude/.test(resolver), 'resolver reads the stamp at run time — it must not carry one');
+  const consumers = {
+    resolver: ['n2b/workflows/stage-2/define.md', 'n2b/workflows/stage-3/specify.md', 'n2b/workflows/stage-4/architect.md', 'n2b/workflows/stage-5/export.md', 'n2b/workflows/config.md'],
+    materializer: ['n2b/workflows/stage-1/init.md', 'n2b/workflows/config.md'],
+  };
+  for (const [kind, files] of Object.entries(consumers)) {
+    const canonical = kind === 'resolver' ? resolver : materializer;
+    for (const rel of files) {
+      const blocks = fencedBlocks(fs.readFileSync(path.join(REPO, rel), 'utf8'), `# n2b-model-${kind}`);
+      assert.strictEqual(blocks.length, 1, `${rel} must carry exactly one ${kind} block`);
+      assert.strictEqual(blocks[0], canonical, `${rel} ${kind} block differs from model-profiles.md`);
+    }
+  }
+  // no workflow resolves models the old way any more
+  for (const rel of consumers.resolver) {
+    const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
+    assert.ok(!/Per-Agent Model Mapping table/.test(text), `${rel} still points at the table`);
+    assert.ok(!/case "\$MODEL_PROFILE"/.test(text), `${rel} still has the old case guard`);
+  }
+});
+
+test('Codex adapter: model routing is capability-gated, aliases banned, one-shot re-spawn', () => {
+  const out = realCommand('s2-define', codex);
+  assert.ok(out.includes('inspect the visible `spawn_agent` schema first'));
+  assert.ok(out.includes('Pass `model` only when the schema advertises a `model` field'));
+  assert.ok(out.includes('re-spawn once with no `model`'));
+  assert.ok(!out.includes('Do NOT pass a `model` parameter'), 'Codex no longer bans model unconditionally');
+  const cursorOut = realCommand('s2-define', cursor);
+  assert.ok(cursorOut.includes('Do NOT pass a `model` parameter'), 'Cursor still never passes a model');
+});
+
+test('resolver + materializer end-to-end (python3): Claude spawns unchanged, inherit omits, legacy configs, Codex omits aliases', function () {
+  if (!hasPython) { console.log('      (python3 not found — skipped)'); return; }
+  const md = fs.readFileSync(PROFILES_PATH, 'utf8');
+  const resolver = pythonBody(fencedBlocks(md, '# n2b-model-resolver')[0]);
+  const materializer = pythonBody(fencedBlocks(md, '# n2b-model-materializer')[0]);
+  const gate0 = fs.readFileSync(path.join(REPO, 'n2b/workflows/stage-1/init.md'), 'utf8').split('\n').find((l) => l.includes('GATE0-CONFIG'));
+  assert.ok(gate0, 'Gate 0 config check present');
+
+  const parse = (stdout) => Object.fromEntries(stdout.trim().split('\n').slice(1).map((l) => { const m = l.match(/^([a-z-]+): model=(\S+) reasoning_effort=(\S+)$/); assert.ok(m, `bad resolver line: ${l}`); return [m[1], { model: m[2], effort: m[3] }]; }));
+  const run = (cwd, rtDir, script, args = []) => {
+    const r = python(script.split('.claude/').join(`${rtDir}/`), cwd, args);
+    assert.strictEqual(r.status, 0, r.stderr || r.stdout);
+    return r.stdout;
+  };
+  const readCfg = (cwd) => JSON.parse(fs.readFileSync(path.join(cwd, '.n2b/config.json'), 'utf8'));
+  const gate = (cwd, rtDir) => spawnSync('bash', ['-c', gate0.split('.claude/').join(`${rtDir}/`)], { cwd, encoding: 'utf8' }).stdout.trim();
+
+  // Claude Code
+  const dir = tmpDir();
+  installOk(['--claude', '--codex', '--target', dir]);
+  fs.mkdirSync(path.join(dir, '.n2b'));
+  run(dir, '.claude', materializer, ['model_profile=balanced', 'model_provider=claude-aliases', 'design_system_source=none']);
+  let cfg = readCfg(dir);
+  assert.deepStrictEqual(Object.keys(cfg), ['model_profile', 'model_provider', 'model_tiers', 'spec_review', 'design_system_source', 'created', 'n2b_version']);
+  assert.deepStrictEqual(cfg.model_tiers, catalog.providers['claude-aliases']);
+  assert.strictEqual(cfg.n2b_version, require(path.join(REPO, 'package.json')).version);
+  assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: PASS'), gate(dir, '.claude'));
+  let out = run(dir, '.claude', resolver);
+  assert.ok(out.startsWith('MODEL_PROFILE=balanced MODEL_PROVIDER=claude-aliases RUNTIME=claude TRANSPORT=spawn-alias\n'));
+  let roles = parse(out);
+  // The pre-Phase-1 Balanced column, verbatim — the regression bar.
+  const balancedBefore = { visionary: 'sonnet', researcher: 'sonnet', synthesizer: 'opus', 'requirements-architect': 'opus', 'feature-analyst': 'sonnet', 'feature-spec-producer': 'sonnet', 'spec-quality-reviewer': 'sonnet', 'cross-reference-reconciler': 'opus', 'profile-analyst': 'sonnet', 'technical-researcher': 'sonnet', 'feasibility-planner': 'opus', 'technical-architect': 'opus', 'schema-designer': 'sonnet', 'backlog-builder': 'sonnet', 'export-formatter': 'sonnet', 'export-fidelity-checker': 'sonnet' };
+  assert.deepStrictEqual(Object.fromEntries(Object.entries(roles).map(([k, v]) => [k, v.model])), balancedBefore);
+  for (const v of Object.values(roles)) assert.strictEqual(v.effort, '(omit)');
+
+  run(dir, '.claude', materializer, ['model_profile=quality']);
+  roles = parse(run(dir, '.claude', resolver));
+  assert.strictEqual(roles.synthesizer.model, 'fable');
+  assert.strictEqual(roles['spec-quality-reviewer'].model, 'opus');
+  run(dir, '.claude', materializer, ['model_profile=budget']);
+  roles = parse(run(dir, '.claude', resolver));
+  assert.strictEqual(roles['spec-quality-reviewer'].model, 'haiku');
+  assert.strictEqual(roles.researcher.model, 'sonnet');
+
+  run(dir, '.claude', materializer, ['model_profile=inherit']);
+  cfg = readCfg(dir);
+  assert.strictEqual(cfg.model_provider, 'inherit');
+  assert.deepStrictEqual(cfg.model_tiers, { frontier: null, heavy: null, standard: null, light: null });
+  for (const v of Object.values(parse(run(dir, '.claude', resolver)))) assert.strictEqual(v.model, '(omit)');
+  assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: PASS'));
+
+  // generic provider: partial IDs + fallback walk; a later --set keeps the others
+  run(dir, '.claude', materializer, ['model_profile=quality', 'model_provider=generic', 'heavy=my/big', 'standard=my/mid']);
+  cfg = readCfg(dir);
+  assert.deepStrictEqual(cfg.model_tiers, { frontier: null, heavy: { model: 'my/big' }, standard: { model: 'my/mid' }, light: null });
+  roles = parse(run(dir, '.claude', resolver));
+  assert.strictEqual(roles.synthesizer.model, 'my/big', 'frontier null → heavy');
+  run(dir, '.claude', materializer, ['light=my/small']);
+  assert.deepStrictEqual(readCfg(dir).model_tiers.heavy, { model: 'my/big' });
+  assert.deepStrictEqual(readCfg(dir).model_tiers.light, { model: 'my/small' });
+
+  // invalid values are refused and nothing is written
+  const before = fs.readFileSync(path.join(dir, '.n2b/config.json'), 'utf8');
+  for (const bad of [['model_profile=turbo'], ['model_provider=nope'], ['spec_review=maybe']]) {
+    const r = python(materializer, dir, bad);
+    assert.notStrictEqual(r.status, 0, `${bad} should fail`);
+    assert.ok(/CONFIG-ERROR/.test(r.stderr + r.stdout), `${bad} should print CONFIG-ERROR`);
+  }
+  assert.strictEqual(fs.readFileSync(path.join(dir, '.n2b/config.json'), 'utf8'), before);
+
+  // legacy five-field config on Claude Code routes exactly as before
+  fs.writeFileSync(path.join(dir, '.n2b/config.json'), JSON.stringify({ model_profile: 'balanced', spec_review: 'independent', design_system_source: 'none', created: '2026-09-01', n2b_version: '0.2.0' }));
+  out = run(dir, '.claude', resolver);
+  assert.ok(out.startsWith('MODEL_PROFILE=balanced MODEL_PROVIDER=claude-aliases RUNTIME=claude'));
+  assert.deepStrictEqual(Object.fromEntries(Object.entries(parse(out)).map(([k, v]) => [k, v.model])), balancedBefore);
+  assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: FAIL'), 'legacy shape fails Gate 0 (Stage 1 must write the full shape)');
+  // materializer upgrades it in place, preserving created
+  run(dir, '.claude', materializer, []);
+  cfg = readCfg(dir);
+  assert.strictEqual(cfg.created, '2026-09-01');
+  assert.deepStrictEqual(cfg.model_tiers, catalog.providers['claude-aliases']);
+
+  // Codex: the same legacy config must NOT leak aliases; default provider is inherit; openai materializes effort
+  fs.writeFileSync(path.join(dir, '.n2b/config.json'), JSON.stringify({ model_profile: 'balanced', spec_review: 'independent', design_system_source: 'none', created: '2026-09-01', n2b_version: '0.2.0' }));
+  out = run(dir, '.codex', resolver);
+  assert.ok(out.startsWith('MODEL_PROFILE=balanced MODEL_PROVIDER=inherit RUNTIME=codex TRANSPORT=spawn-if-advertised\n'), out.split('\n')[0]);
+  for (const v of Object.values(parse(out))) assert.strictEqual(v.model, '(omit)');
+  fs.unlinkSync(path.join(dir, '.n2b/config.json'));
+  run(dir, '.codex', materializer, ['model_profile=balanced']);
+  assert.strictEqual(readCfg(dir).model_provider, 'inherit');
+  run(dir, '.codex', materializer, ['model_profile=quality', 'model_provider=openai']);
+  roles = parse(run(dir, '.codex', resolver));
+  assert.deepStrictEqual(roles.synthesizer, { model: 'gpt-5.6-sol', effort: 'xhigh' });
+  assert.deepStrictEqual(roles.visionary, { model: 'gpt-5.6-sol', effort: 'high' });
+  for (const v of Object.values(roles)) assert.ok(!/^(fable|opus|sonnet|haiku)$/.test(v.model), 'no alias on codex');
 });
 
 main();

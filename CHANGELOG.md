@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `/n2b:config` — show or change pipeline settings after Stage 1 (`--show`, `--profile`, `--provider`, `--set <tier>=<id>`, `--spec-review`, `--design-system`; no flags asks the Stage 1 questions again). Writes only `.n2b/config.json`, always through the catalog materializer.
+- `n2b/references/model-catalog.json` — single source of truth for model routing: 16 agent roles × 3 profiles → 4 semantic tiers (`frontier`, `heavy`, `standard`, `light`), provider presets (`claude-aliases`, `anthropic`, `openai`, `generic`), and per-runtime transport. The table in `model-profiles.md` is a rendered projection, checked by `npm test`.
+- `model_provider` and `model_tiers` fields in `.n2b/config.json`: the chosen provider's model IDs are materialized at write time, so stage workflows read a flat object instead of walking a lookup table. Legacy five-field configs keep working (Claude Code projects route exactly as before) and are upgraded by `/n2b:config`.
+- `inherit` model profile (no routing — every agent uses the host's session model), accepted on every runtime.
+- Stage 1 Step 6.5 is runtime-aware and un-skippable: Claude Code asks the profile; Codex and OpenCode show a notice, then ask profile and provider (Inherit offered first); Cursor writes `inherit` with a one-line notice. A skipped question is recorded under `## Deviations` and checked by Gate 0 (`GATE0-SETTINGS`, `GATE0-CONFIG`).
+- `/n2b:status` shows a `Models:` line.
+
+### Changed
+- Model tiers are named `frontier` / `heavy` / `standard` / `light`; `fable` / `opus` / `sonnet` / `haiku` survive only as the Claude Code alias values. Claude Code spawns are unchanged.
+- Codex skill adapter: model routing is capability-gated — `model` and `reasoning_effort` are passed to `spawn_agent` only when its schema advertises each field and a concrete ID resolved; a rejected model is re-spawned once without one and recorded in Deviations. Aliases and `claude-*` values are never sent.
+- Fixed `n2b_version` drift in the Stage 1 brief template (`0.1.0` → `0.2.0`); the version is now copied from the config template rather than typed.
+
+### Known limitations
+- Codex routing is still unverified against a live Codex CLI; OpenCode routing is recorded but not applied until native agent files ship.
+
 ## [0.2.0] - 2026-09-13
 
 ### Added

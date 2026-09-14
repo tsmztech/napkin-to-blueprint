@@ -156,7 +156,11 @@ All targets except `dev-brief` also embed a byte-identical copy of the full blue
 
 ### Anytime — `/n2b:status`
 
-Reports pipeline state, per-stage progress, integrity checks, export freshness, and the exact next command to run. If you're ever unsure where you are, run this.
+Reports pipeline state, per-stage progress, integrity checks, export freshness, the current model settings, and the exact next command to run. If you're ever unsure where you are, run this.
+
+### Anytime — `/n2b:config`
+
+Shows or changes the pipeline settings Stage 1 collected, without re-running intake: `/n2b:config --show` prints the model every agent role would get right now; `--profile <quality|balanced|budget|inherit>`, `--provider <name>`, `--set <tier>=<model-id>`, `--spec-review <independent|self-only>`, and `--design-system <none|user>` change one setting each; no flags asks the same questions Stage 1 did. Changes take effect on the next stage command.
 
 ## Bring your own design system
 
@@ -173,7 +177,16 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 - One of: [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex) (CLI ≥ 0.130.0 — earlier versions can list skills twice; **experimental**: not yet verified against a live Codex CLI, and Codex's current docs list `.agents/skills/` as the project skill root rather than `.codex/skills/` — if `$n2b-*` does not appear, try `mv .codex/skills .agents/skills` and [report it](https://github.com/tsmztech/napkin-to-blueprint/issues)), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com)
 - Node.js ≥ 16 (used only by the installer — zero npm dependencies)
 
-**Model profiles per runtime.** On Claude Code, Stage 1 asks once which model profile to use (`balanced`, `quality`, or `budget`) and every later stage routes each agent to a model tier from that answer. On Codex, OpenCode, and Cursor, Stage 1 does not ask: it writes `model_profile: "inherit"` and every agent runs on the host's configured default model. Per-runtime model routing for those hosts is on the roadmap.
+**Model profiles per runtime.** Stage 1 asks once which model profile to use — `balanced`, `quality`, `budget`, or `inherit` (no routing; every agent uses the session model) — and each profile assigns one of four tiers (`frontier`, `heavy`, `standard`, `light`) to each of n2b's 16 agent roles. Tiers become real models through a **provider** whose IDs are written into `.n2b/config.json` from `n2b/references/model-catalog.json`:
+
+| Runtime | Asked at Stage 1 | Providers | Applied at spawn |
+|---|---|---|---|
+| Claude Code | profile | `claude-aliases` (`fable` / `opus` / `sonnet` / `haiku` tier aliases — never stale) | yes — the Agent tool's `model` parameter |
+| Codex *(experimental)* | notice, profile (Inherit recommended if unsure), provider | `openai` (gpt-5.6 sol / terra / luna with reasoning effort) or custom IDs | only when the host's `spawn_agent` exposes a `model` field; otherwise agents run on the session model. Not yet verified live |
+| OpenCode | notice, profile, provider | `anthropic`, `openai`, or custom IDs | recorded now, applied once n2b ships native OpenCode agent files (next release) |
+| Cursor | not asked | — | never — Cursor's configured model applies to every agent |
+
+`/n2b:config` changes any of this later. `/n2b:status` shows the current setting.
 
 ## Working on n2b itself
 

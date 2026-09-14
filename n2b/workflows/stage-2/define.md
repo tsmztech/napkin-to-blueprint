@@ -19,7 +19,7 @@ Before starting, read:
 - `.claude/n2b/references/ui-brand.md` — banner format (40 `━` characters, `n2b > {BANNER NAME}` prefix), the registered banner names, and status symbols (`✓` = complete, `○` = pending/in-progress)
 - `.claude/n2b/references/tracking-protocol.md` — tracking transitions: stage-rerun-guard, stage-start, step-complete, gate-check, stage-complete, gate-fail
 - `.claude/n2b/references/pipeline-gatekeeper.md` -- entry gate (Check 1-3 flow, error formats, stage registry)
-- `.claude/n2b/references/model-profiles.md` — Per-Agent Model Mapping table and resolution logic for the Agent tool's `model` parameter
+- `.claude/n2b/references/model-profiles.md` — model routing: the `n2b-model-resolver` block, the rendered role table, and the per-runtime Transport Rules (data: `.claude/n2b/references/model-catalog.json` and `.n2b/config.json` `model_tiers`)
 
 Gate naming: this workflow's two gates are **Gate 1 — Draft Validation** and **Gate 2 — Final Validation** (tracking identifiers `stage-2-gate-1-*` / `stage-2-gate-2-*`). Per ui-brand.md's registered banner set, their pass banners are `GATE A PASSED` (Gate 1) and `GATE B PASSED` (Gate 2); gate failures render the markdown gate-failure block, not a banner.
 
@@ -274,15 +274,35 @@ mkdir -p .n2b/features/drafts
 
 This creates both `.n2b/features/` and `.n2b/features/drafts/` in a single command. The agents will write to these directories; they must exist before agents are spawned.
 
-**Model resolution (once for this workflow):** read the model profile from config —
+**Model resolution (once for this workflow):** run the `n2b-model-resolver` block below — owned by `model-profiles.md` (Resolution Logic) and reproduced here verbatim. It prints `MODEL_PROFILE`, `MODEL_PROVIDER`, `RUNTIME`, `TRANSPORT`, and one line per agent role. Every spawn in this workflow takes its model from its role's line — Stage 2 uses `visionary`, `researcher`, `synthesizer` — and applies it per the **Transport Rules** table for `RUNTIME` in `model-profiles.md` (on Claude Code: pass the ID as the Agent tool's `model` parameter). `(omit)` means pass **no** `model` parameter — never the literal string, never a guess. Never hardcode a model name in this workflow and never look a model up by hand.
 
 ```bash
-MODEL_PROFILE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('model_profile','balanced'))" 2>/dev/null || echo "balanced")
-case "$MODEL_PROFILE" in quality|balanced|budget|inherit) ;; *) MODEL_PROFILE="balanced" ;; esac
-echo "MODEL_PROFILE=$MODEL_PROFILE"
+# n2b-model-resolver — resolve every agent role's model once per workflow (model-profiles.md, Resolution Logic). Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - <<'PYEOF'
+import json, re
+cfg = {}
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: pass
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+profile = cfg.get('model_profile', 'balanced')
+if profile not in cat['profiles']: profile = 'balanced'
+provider = cfg.get('model_provider')
+tiers = cfg.get('model_tiers')
+if not isinstance(tiers, dict):  # legacy config: materialize on the fly from the runtime's default provider
+    if provider != 'inherit' and provider not in cat['providers']: provider = cat['runtimes'][runtime]['defaultProvider']
+    tiers = cat['providers'].get(provider) or {}
+if profile == 'inherit' or provider == 'inherit': tiers = {}
+print(f"MODEL_PROFILE={profile} MODEL_PROVIDER={provider or 'inherit'} RUNTIME={runtime} TRANSPORT={cat['runtimes'][runtime]['transport']}")
+for role, row in cat['roles'].items():
+    tier = None if profile == 'inherit' else row[profile]
+    while tier and not (tiers.get(tier) or {}).get('model'):
+        tier = cat['fallback'].get(tier)
+    entry = (tiers.get(tier) or {}) if tier else {}
+    print(f"{role}: model={entry.get('model') or '(omit)'} reasoning_effort={entry.get('reasoning_effort') or '(omit)'}")
+PYEOF
 ```
-
-If the value is not one of `quality` / `balanced` / `budget` / `inherit`, fall back to `balanced` (config-schema.md: missing/invalid handling). **If it is `inherit`, pass no `model` parameter on any spawn in this workflow** — the host's default model applies (model-profiles.md, `inherit` profile). Otherwise resolve each Stage 2 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Visionary**, **Researcher**, **Synthesizer**) and pass the resolved model as the Agent tool's `model` parameter on every spawn below — the mapping table is the single source; never hardcode a model name in this workflow.
 
 Display the Pass A banner (registered name per ui-brand.md):
 
@@ -323,13 +343,13 @@ Depth requirements (the product-features template is the contract):
 - Phase assignment: every feature entry carries a `**Phase:**` field (MVP | v1 | Later) — release phasing, orthogonal to Priority.
 - Functional Depth: every feature entry carries the eight-field Functional Depth block per the product-features template — `**Primary Flows & Alternates:**`, `**States:**`, `**Validation & Limits:**`, `**Access:**`, `**Communications:**`, `**Data Notes:**`, `**Interactions:**`, `**Signals:**`. Where a field genuinely does not apply, write `N/A — {one-sentence reason}` — never leave it blank."
 - Tools: Read, Write, Bash
-- Model: resolved from the **Visionary** (Stage 2) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `visionary` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 55 (6 documents with template reading, per-feature Functional Depth, and phase assignment — generous)
 
 **Agent 2: Market Researcher** (always spawned)
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-2/n2b-researcher.md` and execute your complete task as described. Inputs: `.n2b/BRIEF.md` (founding document — read first per pipeline-rules.md brief-first constraint). Template at `.claude/n2b/templates/stage-2/market-research.md`. Output: `.n2b/features/market-research.md` (directory already exists). Write your single deliverable per your contract's deliverables section. Do not ask for clarification — work autonomously with what is in BRIEF.md."
 - Tools: Read, Write, Bash, WebSearch, WebFetch
-- Model: resolved from the **Researcher** (Stage 2) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `researcher` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 60 (web research needs more turns)
 
 **Spawning logic:** Issue both Agent tool calls together so they run concurrently (PIPE-03).
@@ -601,7 +621,7 @@ Synthesis requirements:
 - Functional Depth enrichment: verify and enrich every feature entry's `**Phase:**` field and eight-field Functional Depth block (per the product-features template) during your audits — no feature entry leaves your pass with a missing or blank depth field.
 - Persona set: synthesize user-persona.md as a persona set per its template — the primary persona always; secondary personas/roles only when the brief or research warrants them, each carrying the same provenance discipline as a new feature (marker + rationale + citation, per pipeline-rules.md grounded-roles); include the Access Matrix — it is the source of every feature entry's `**Access:**` field."
 - Tools: Read, Write, Bash
-- Model: resolved from the **Synthesizer** (Stage 2) row of model-profiles.md under MODEL_PROFILE (Step 2)
+- Model: the `synthesizer` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 65 (8 inputs to read + 6 outputs with depth enrichment and persona-set synthesis + synthesis check)
 
 Wait for the agent to complete before proceeding to Step 6.
