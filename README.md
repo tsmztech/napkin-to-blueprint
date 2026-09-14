@@ -36,7 +36,7 @@ Flags combine (`--claude --cursor`). Installs are project-local: n2b's commands,
 |---------|--------------|------------|-------------|
 | Claude Code | `./.claude/` | `/n2b:s1-init` | `/n2b:s2-define` … `/n2b:status` |
 | Codex *(experimental)* | `./.codex/` | `$n2b-s1-init` | `$n2b-s2-define` … `$n2b-status` |
-| OpenCode | `./.opencode/` | `/n2b-s1-init` | `/n2b-s2-define` … `/n2b-status` |
+| OpenCode | `./.opencode/` (commands + `agents/n2b-*.md`) | `/n2b-s1-init` | `/n2b-s2-define` … `/n2b-status` |
 | Cursor | `./.cursor/` | `/n2b-s1-init` (or mention `n2b-s1-init`) | `/n2b-s2-define` … `/n2b-status` |
 
 From there, each stage tells you the exact next command when it finishes. To update n2b later, re-run the same `npx` command. Restart the runtime (or start a new session) after installing so it discovers the new commands.
@@ -183,14 +183,14 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 |---|---|---|---|
 | Claude Code | profile | `claude-aliases` (`fable` / `opus` / `sonnet` / `haiku` tier aliases — never stale) | yes — the Agent tool's `model` parameter |
 | Codex *(experimental)* | notice, profile (Inherit recommended if unsure), provider | `openai` (gpt-5.6 sol / terra / luna with reasoning effort) or custom IDs | only when the host's `spawn_agent` exposes a `model` field; otherwise agents run on the session model. Not yet verified live |
-| OpenCode | notice, profile, provider | `anthropic`, `openai`, or custom IDs | recorded now, applied once n2b ships native OpenCode agent files (next release) |
+| OpenCode | notice, profile, provider | `anthropic`, `openai`, or custom IDs | yes — the installer emits one native agent file per n2b role (`.opencode/agents/n2b-<role>.md`) and Stage 1 / `/n2b-config` write each role's model into its `model:` line; re-run `/n2b-config` after reinstalling n2b. Not yet verified live |
 | Cursor | not asked | — | never — Cursor's configured model applies to every agent |
 
 `/n2b:config` changes any of this later. `/n2b:status` shows the current setting.
 
 ## Working on n2b itself
 
-Source lives at this repository's root and is authored once, in Claude Code native format; the installer syncs it into the chosen runtime's directory (`.claude/`, `.codex/`, `.opencode/`, `.cursor/`), rewriting paths, command names, includes, and tool names for that host on the way. Runtime artifacts go to the target's `.n2b/`, never back into source.
+Source lives at this repository's root and is authored once, in Claude Code native format; the installer syncs it into the chosen runtime's directory (`.claude/`, `.codex/`, `.opencode/`, `.cursor/`), rewriting paths, command names, includes, and tool names for that host on the way — and, on OpenCode, emitting one native subagent file per model-catalog role so per-agent models can be applied through frontmatter. Runtime artifacts go to the target's `.n2b/`, never back into source.
 
 | Path | Purpose |
 |------|---------|
@@ -199,7 +199,7 @@ Source lives at this repository's root and is authored once, in Claude Code nati
 | `commands/n2b/` | Slash-command definitions |
 | `n2b/agents/` | Stage subagent definitions |
 | `n2b/workflows/` | Per-stage orchestration |
-| `n2b/references/` | Methodologies, rules, and schemas |
+| `n2b/references/` | Methodologies, rules, and schemas (incl. `model-catalog.json`, the model-routing data) |
 | `n2b/templates/` | Output document + tracking templates |
 
 ```bash

@@ -116,7 +116,7 @@ terminal is attached).
 
   --claude        Claude Code  → <dir>/.claude/
   --codex         Codex        → <dir>/.codex/   (experimental)
-  --opencode      OpenCode     → <dir>/.opencode/
+  --opencode      OpenCode     → <dir>/.opencode/  (commands + agents/n2b-*.md)
   --cursor        Cursor       → <dir>/.cursor/
   --all           all four runtimes
   --target <dir>  project directory (defaults to the current directory)
