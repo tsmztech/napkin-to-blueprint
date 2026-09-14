@@ -302,7 +302,7 @@ This file is a live tracker while status is in-progress. Once status changes to 
 ### Gate 0 — Brief Validation
 - Status: pending
 - [ ] BRIEF.md exists with valid frontmatter (5 required fields)
-- [ ] config.json written with the 5 registered fields; Step 6.5 ticked or its skip recorded in Deviations
+- [ ] config.json written with the 7 registered fields; Step 6.5 ticked or its skip recorded in Deviations
 - [ ] All 10 required sections non-empty
 - [ ] project_name and domain present
 - [ ] Self-audit: roles confirmed or single-role stated
@@ -708,13 +708,13 @@ The frontmatter has exactly these 5 fields — no others. Hosting and deployment
 
 <!-- n2b-runtime: claude -->
 
-**Runtime detection.** The `n2b-runtime` marker directly above names the host this copy of n2b was installed for (the installer stamps it: `claude`, `codex`, `opencode`, or `cursor`). It decides how this step behaves:
+**Runtime detection.** The `n2b-runtime` marker directly above names the host this copy of n2b was installed for (the installer stamps it: `claude`, `codex`, `opencode`, or `cursor`). It decides how this step behaves; the catalog (`.claude/n2b/references/model-catalog.json`, `runtimes.<id>`) is the data behind this table:
 
 | Runtime marker | Behaviour |
 |---|---|
-| `claude` | Ask the Models question below and write the chosen profile. |
-| `codex`, `opencode` | Do **not** ask. Show the runtime notice below and write `model_profile: "inherit"`. |
-| `cursor` | Do **not** ask. Show the one-line notice below and write `model_profile: "inherit"`. |
+| `claude` | Ask **Q1 — Models** (three profiles). Provider is always `claude-aliases`; no provider question. |
+| `codex`, `opencode` | Show the runtime notice, then ask **Q1 — Models** (three profiles + Inherit), then — unless Inherit — **Q2 — Provider** from the catalog's `knownProviders` for this runtime (+ "Custom model IDs"). |
+| `cursor` | Do **not** ask. Show the one-line notice and write `model_profile: "inherit"`. |
 
 Display the PIPELINE SETTINGS banner:
 
@@ -724,12 +724,12 @@ n2b > PIPELINE SETTINGS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Your brief is ready. Before n2b takes over,
-one quick preference for the pipeline.
+a quick preference for the pipeline.
 ```
 
-### On `claude` — ask
+### On `claude` — Q1 only
 
-**Question — Model profile.** Use AskUserQuestion:
+**Q1 — Model profile.** Use AskUserQuestion:
 - header: "Models"
 - question: "Which AI models should n2b's agents use?"
 - options:
@@ -738,28 +738,61 @@ one quick preference for the pipeline.
   - "Budget — fastest and cheapest"
 - Maps to model_profile: "balanced", "quality", or "budget"
 
-This is the only question. It is asked **once, here, for the whole pipeline** — later stages read the answer from `.n2b/config.json` and never re-ask.
+Resolved: `PROFILE` = the answer; `PROVIDER` = `claude-aliases`.
 
-### On `codex` / `opencode` — notice, no question
+This is the only question on Claude Code. It is asked **once, here, for the whole pipeline** — later stages read the answer from `.n2b/config.json` and never re-ask. It can be changed later with `/n2b:config`.
 
-Display instead of the question:
+### On `codex` / `opencode` — notice, Q1, then Q2
+
+Display the notice first (fill the bracketed part from the Transport Rules table in `model-profiles.md` for this runtime):
 
 ```
-Model profile: inherit
+Model routing on this runtime
 
-On this runtime every n2b agent runs on the host's configured
-default model. Per-agent model routing (quality / balanced /
-budget) is available on Claude Code today; support for this
-runtime is on the roadmap.
+Quality / Balanced / Budget assign a tier (frontier, heavy,
+standard, light) to each n2b agent. To turn tiers into real
+models here, n2b needs to know your provider (next question),
+and the host must accept a model per agent:
+  [codex:    passed to spawn_agent only when its schema exposes
+             `model` — otherwise agents run on your session model.
+             On a ChatGPT-account Codex, pinned models can be
+             rejected; choose Inherit if unsure.]
+  [opencode: applied through native agent files, which n2b does
+             not ship yet — your choice is recorded and takes
+             effect automatically once they land. Until then
+             agents run on your configured model.]
+Inherit skips routing entirely: every agent uses the session
+model. You can change any of this later with /n2b:config.
 ```
 
-Resolved value: `model_profile: "inherit"`.
+**Q1 — Model profile.** Use AskUserQuestion:
+- header: "Models"
+- question: "Which AI models should n2b's agents use?"
+- options:
+  - "Inherit — use my session model for every agent (Recommended if unsure)"
+  - "Balanced — smart planning, fast execution"
+  - "Quality — best models everywhere, higher cost"
+  - "Budget — fastest and cheapest"
+- Maps to model_profile: "inherit", "balanced", "quality", or "budget"
+
+If the answer is Inherit: `PROFILE` = `inherit`, `PROVIDER` = `inherit`. Skip Q2.
+
+**Q2 — Provider** (only when Q1 was not Inherit). Use AskUserQuestion:
+- header: "Provider"
+- question: "Which provider's model IDs should the tiers map to?"
+- options: one per entry in the catalog's `runtimes.<runtime>.knownProviders`, in order, with the preset's IDs in the description — e.g. on `codex`: "OpenAI — gpt-5.6-sol / terra / luna with reasoning effort"; on `opencode`: "Anthropic — anthropic/claude-fable-5 / opus-4-8 / sonnet-5 / haiku-4-5", "OpenAI — gpt-5.6-sol / terra / luna" — plus always:
+  - "Custom model IDs — I'll type the model ID for each tier (OpenRouter, LiteLLM, local…)"
+- Maps to model_provider: the catalog key (`openai`, `anthropic`, …) or `generic` for Custom.
+
+If Custom: ask, in one AskUserQuestion or a short plain-text exchange, for the model ID of each tier — `heavy`, `standard`, `light` (required, non-empty) and `frontier` (optional; blank = fall back to `heavy`). Record them as `TIER_ARGS` = `heavy=<id> standard=<id> light=<id>` plus `frontier=<id>` when given. Never accept an empty required ID — re-ask once, then fall back to Inherit and record the reason in Deviations (see Fallback).
+
+Resolved: `PROFILE`, `PROVIDER`, and (Custom only) `TIER_ARGS`.
 
 ### On `cursor` — one-liner, no question
 
-Display: `Model profile: inherit — agents run on Cursor's configured model.`
+Display: `Model profile: inherit — Cursor runs every n2b agent on its configured model; skipping the model question.`
 
-Resolved value: `model_profile: "inherit"`.
+Resolved: `PROFILE` = `inherit`, `PROVIDER` = `inherit`.
 
 ### Write the config (all runtimes)
 
@@ -769,26 +802,56 @@ Two further fields are written without asking, on every runtime:
 
 The pipeline runs manual-only: every stage ends paused and the user triggers the next stage command themselves. There is no auto-pilot mode and no `pipeline_mode` field.
 
-Write `.n2b/config.json` using the Write tool:
+Write `.n2b/config.json` by running the **`n2b-model-materializer`** block from `model-profiles.md` (section "Materializing the Config") — never by hand-typing JSON. The block is reproduced here verbatim; substitute the resolved values into the argument list (`{PROFILE}`, `{PROVIDER}`), append `design_system_source=<none|user>`, and append `TIER_ARGS` when the provider is `generic`:
 
-```json
-{
-  "model_profile": "[resolved value — quality | balanced | budget on claude; inherit elsewhere]",
-  "spec_review": "independent",
-  "design_system_source": "[user or none — resolved as above]",
-  "created": "[today's date YYYY-MM-DD]",
-  "n2b_version": "[copied from the n2b_version field of the config.json template — currently 0.2.0]"
-}
+```bash
+# n2b-model-materializer — write .n2b/config.json from the catalog (config-schema.md owns the fields). Arguments are key=value pairs; omitted keys keep the current config's value, else the default. Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - model_profile={PROFILE} model_provider={PROVIDER} <<'PYEOF'
+import json, re, sys, datetime
+args = dict(a.split('=', 1) for a in sys.argv[1:])
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+tpl = json.load(open('.claude/n2b/templates/config.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: cfg = {}
+default_profile = 'balanced' if runtime == 'claude' else 'inherit'
+profile = args.get('model_profile') or cfg.get('model_profile') or default_profile
+if profile not in cat['profiles']: sys.exit(f"CONFIG-ERROR: model_profile must be one of {cat['profiles']}, got {profile!r}")
+provider = args.get('model_provider') or cfg.get('model_provider') or cat['runtimes'][runtime]['defaultProvider']
+if profile == 'inherit': provider = 'inherit'
+if provider != 'inherit' and provider not in cat['providers']: sys.exit(f"CONFIG-ERROR: model_provider must be one of {list(cat['providers']) + ['inherit']}, got {provider!r}")
+old = cfg.get('model_tiers') if isinstance(cfg.get('model_tiers'), dict) else {}
+if provider == 'inherit': tiers = {t: None for t in cat['tiers']}
+elif provider == 'generic': tiers = {t: (old.get(t) if cfg.get('model_provider') == 'generic' else None) for t in cat['tiers']}
+else: tiers = {t: cat['providers'][provider][t] for t in cat['tiers']}
+for t in cat['tiers']:
+    if t in args: tiers[t] = {'model': args[t]} if args[t] else None
+for t, e in tiers.items():
+    if e is not None and not (isinstance(e, dict) and isinstance(e.get('model'), str) and e['model']): sys.exit(f"CONFIG-ERROR: model_tiers.{t} must be null or {{\"model\": \"<id>\"}}")
+allowed = {'spec_review': ('independent', 'self-only'), 'design_system_source': ('none', 'user')}
+out = {'model_profile': profile, 'model_provider': provider, 'model_tiers': tiers}
+for k, ok in allowed.items():
+    v = args.get(k) or cfg.get(k) or tpl[k]
+    if v not in ok: sys.exit(f"CONFIG-ERROR: {k} must be one of {list(ok)}, got {v!r}")
+    out[k] = v
+out['created'] = cfg.get('created') or datetime.date.today().isoformat()
+out['n2b_version'] = tpl['n2b_version']
+json.dump(out, open('.n2b/config.json', 'w'), indent=2); open('.n2b/config.json', 'a').write('\n')
+print(json.dumps(out, indent=2))
+PYEOF
 ```
 
-The runtime config contains exactly these five registered fields — no more, no fewer (see `config-schema.md`).
+The script prints the written file. It materializes `model_tiers` from the catalog for the chosen provider (all `null` under `inherit`), copies `n2b_version` from the template, sets `created` to today, and refuses invalid values with a `CONFIG-ERROR:` line — if that happens, fix the argument and re-run; do not edit the file by hand. The result contains exactly the seven registered fields (`model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source`, `created`, `n2b_version` — see `config-schema.md`).
+
+Confirm to the user in one line, e.g. `Pipeline settings written — models: balanced · claude-aliases` or `Pipeline settings written — models: inherit (session model)`.
 
 **Step tracking after writing config.json:**
 - Tick `- [x] Pipeline settings collected` in `.n2b/tracking/stages/s1-init/STAGE.md`
 - Update `.n2b/tracking/STATE.md` frontmatter: `current_step: gate-0`, `last_updated: {ISO timestamp}`
-- Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "Pipeline settings written (model_profile: {value})", Next action "Gate 0 validation"
+- Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "Pipeline settings written (model_profile: {value}, model_provider: {value})", Next action "Gate 0 validation"
 
-**Fallback — CRITICAL: config.json is ALWAYS written.** Never fail Stage 1 over config. If the user cancels the question, the AskUserQuestion tool is unavailable, or anything else goes wrong during preference collection, write the defaults (`model_profile: "balanced"` on `claude`, `"inherit"` elsewhere; `spec_review: "independent"`; `design_system_source` as resolved above) and move on — **but the skip must be visible**:
+**Fallback — CRITICAL: config.json is ALWAYS written.** Never fail Stage 1 over config. If the user cancels a question, the AskUserQuestion tool is unavailable, a Custom ID stays empty after one re-ask, or anything else goes wrong during preference collection, run the materializer with the defaults (`model_profile=balanced model_provider=claude-aliases` on `claude`; `model_profile=inherit` elsewhere; plus `design_system_source` as resolved above) and move on — **but the skip must be visible**:
 - Do **not** tick `- [ ] Pipeline settings collected`.
 - Append to `.n2b/tracking/stages/s1-init/STAGE.md` `## Deviations`:
   `- **Config:** pipeline settings written with defaults — user was not asked ({reason})`
@@ -819,7 +882,7 @@ test -f .n2b/BRIEF.md && echo "GATE0-FILE: PASS" || echo "GATE0-FILE: FAIL"
 ```bash
 # Extract frontmatter and check for all 5 fields
 sed -n '/^---$/,/^---$/p' .n2b/BRIEF.md | grep -c '^\(project_name\|domain\|created\|status\|n2b_version\):' | xargs -I{} sh -c 'if [ {} -eq 5 ]; then echo "GATE0-FRONTMATTER: PASS (5/5 fields)"; else echo "GATE0-FRONTMATTER: FAIL ({}/5 fields)"; fi'
-[ -f .n2b/config.json ] && python3 -c "import json,sys; c=json.load(open('.n2b/config.json')); sys.exit(0 if set(c)=={'model_profile','spec_review','design_system_source','created','n2b_version'} and c['model_profile'] in ('quality','balanced','budget','inherit') else 1)" && echo "GATE0-CONFIG: PASS (5 fields, model_profile valid)" || echo "GATE0-CONFIG: FAIL (config.json missing, wrong field set, or invalid model_profile)"
+[ -f .n2b/config.json ] && python3 -c "import json,sys; c=json.load(open('.n2b/config.json')); k=json.load(open('.claude/n2b/references/model-catalog.json')); t=c.get('model_tiers'); sys.exit(0 if set(c)=={'model_profile','model_provider','model_tiers','spec_review','design_system_source','created','n2b_version'} and c['model_profile'] in k['profiles'] and (c['model_provider']=='inherit' or c['model_provider'] in k['providers']) and isinstance(t,dict) and set(t)==set(k['tiers']) and all(v is None or (isinstance(v,dict) and v.get('model')) for v in t.values()) else 1)" && echo "GATE0-CONFIG: PASS (7 fields, model_profile/provider/tiers valid)" || echo "GATE0-CONFIG: FAIL (config.json missing, wrong field set, or invalid model_profile / model_provider / model_tiers)"
 { grep -q '^- \[x\] Pipeline settings collected' .n2b/tracking/stages/s1-init/STAGE.md || grep -q '^- \*\*Config:\*\* pipeline settings written with defaults' .n2b/tracking/stages/s1-init/STAGE.md; } && echo "GATE0-SETTINGS: PASS (asked, or skip recorded in Deviations)" || echo "GATE0-SETTINGS: FAIL (Step 6.5 neither ticked 'Pipeline settings collected' nor recorded the skip)"
 ```
 
@@ -874,7 +937,7 @@ Update the Gates section to reflect what you found:
 - Fill Output section:
   ```
   - .n2b/BRIEF.md (10 sections{, + Feature Direction / Design System / Source Materials when present})
-  - .n2b/config.json (model_profile, spec_review, design_system_source)
+  - .n2b/config.json (model_profile, model_provider, model_tiers, spec_review, design_system_source)
   {- .n2b/inputs/design-system/ (user-supplied design artifacts) — only when provided}
   {- .n2b/inputs/source/ (user-supplied documents, preserved verbatim) — only when provided}
   ```
@@ -1016,7 +1079,7 @@ Do NOT create a git commit.
 <success_criteria>
 
 - `.n2b/BRIEF.md` exists with valid YAML frontmatter (exactly 5 fields: project_name, domain, created, status, n2b_version) and all 10 required sections
-- `.n2b/config.json` exists with exactly the five registered fields: model_profile, spec_review, design_system_source, created, n2b_version — `model_profile` is the user's answer on Claude Code and `inherit` on every other runtime
+- `.n2b/config.json` exists with exactly the seven registered fields: model_profile, model_provider, model_tiers, spec_review, design_system_source, created, n2b_version — written by the `n2b-model-materializer` block, never hand-typed; `model_profile` is the user's answer on Claude Code, Codex, and OpenCode and `inherit` on Cursor; `model_tiers` is materialized from the catalog for the chosen provider (all `null` under `inherit`)
 - Step 6.5 was reached from Step 6 (not skipped): `- [x] Pipeline settings collected` is ticked in s1-init/STAGE.md, or the skip is recorded under `## Deviations` — never a silent default
 - Vision section is specific enough that two people would picture roughly the same product
 - Experience section reads like a story, not a spec
@@ -1033,7 +1096,7 @@ Do NOT create a git commit.
 - No round cap — conversation ran until clarity or user chose to proceed
 - User had 4 choices at the fork: hand off, add more, correct, features
 - If an existing BRIEF.md was present, it was handled (archived or cancelled)
-- config.json was written regardless of user preference choices — and on Claude Code the Models question was visibly asked
+- config.json was written regardless of user preference choices — and on Claude Code, Codex, and OpenCode the Models question was visibly asked (Codex/OpenCode after the runtime notice, with Inherit offered first)
 - `.n2b/tracking/PIPELINE.md` exists with `active_stage: 0` and Stage 1 marked complete
 - `.n2b/tracking/STATE.md` exists with `stage_status: between-stages` and project name in accumulated context
 - `.n2b/tracking/stages/s1-init/STAGE.md` exists with `status: complete` and Gate 0 evidence including the substance self-audit

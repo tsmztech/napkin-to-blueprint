@@ -23,6 +23,7 @@ The gatekeeper is a **state machine, not a file inspector.** It reads tracking f
 | Routing display ("run X next") in status reports | **Status workflow** (reads gatekeeper's sequence definition) |
 | Exit gate (post-condition validation — file existence + content checks) | **Per-stage workflow** (unchanged) |
 | Artifact file-existence checks for integrity reporting | **Status workflow** (owns its own file lists for drift detection) |
+| Pipeline settings after Stage 1 (`.n2b/config.json`: model profile/provider/tiers, spec review, design-system source) | **Config workflow** (`/n2b:config`, `n2b/workflows/config.md`) — reads and rewrites the config only; never touches tracking, never runs Check 1–3 |
 
 The gatekeeper defines validation rules that workflows execute — the same relationship as `tracking-protocol.md` defining transition rules that workflows execute.
 
@@ -342,6 +343,10 @@ Agents always read prerequisite files via file path using the Read tool. Content
 If a file is missing or was deleted after the gatekeeper passed, the agent's Read call fails immediately with a clear error. This catches the edge case where the filesystem changes between the gatekeeper check and agent execution — including the rare case of manual file deletion after a stage marked complete.
 
 This rule is already how n2b agents work today. It is stated here as an explicit architectural invariant so it is never changed to "optimize" token usage.
+
+### Anytime commands
+
+`/n2b:status` and `/n2b:config` run at any point in the sequence and are not stages: neither fires a tracking transition, neither is subject to Checks 1–3, and neither appears in the Stage Registry. `/n2b:status` reads tracking and routes; `/n2b:config` reads and rewrites `.n2b/config.json` (it requires Stage 1 to have written the file, and routes to `/n2b:s1-init` otherwise).
 
 ### Layer 3 — Status Integrity Scan
 

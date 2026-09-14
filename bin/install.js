@@ -320,7 +320,9 @@ function rewriteToolNames(content, rt) {
 /**
  * Runtime stamp: `<!-- n2b-runtime: claude -->` in source (model-profiles.md,
  * stage-1/init.md Step 6.5) is rewritten to the target runtime id so workflows
- * know which host they run on without guessing (gsd-core _stampNonClaudeRuntimeDefaults,
+ * know which host they run on without guessing. The model resolver and
+ * materializer scripts in model-profiles.md read the stamp from that file at
+ * run time, so no other file needs one (gsd-core _stampNonClaudeRuntimeDefaults,
  * bin/install.js:7972-7976).
  */
 const RUNTIME_STAMP = /<!-- n2b-runtime: [a-z-]+ -->/g;
@@ -419,7 +421,8 @@ n2b workflows say \`AskUserQuestion\` (Claude Code syntax). Translate each call 
 ## C. Subagents → spawn_agent
 n2b workflows say "spawn ... using the Agent tool". Translate to Codex collaboration tools:
 - Spawn with \`spawn_agent(message=...)\`, passing the workflow's prompt for that agent verbatim as \`message\`.
-- Do NOT pass a \`model\` parameter. Codex's configured default model applies to every agent (see the Runtime rule in \`.codex/n2b/references/model-profiles.md\`).
+- Model routing is capability-gated (Transport Rules, \`.codex/n2b/references/model-profiles.md\`; gsd-core bin/install.js:3894-3925 and ADR-2313 amendment 2026-09-04): inspect the visible \`spawn_agent\` schema first. Pass \`model\` only when the schema advertises a \`model\` field AND the workflow's model resolution output shows a concrete ID for that role (not \`(omit)\`); pass \`reasoning_effort\` only when that field is advertised too — decide the two independently. Never pass a Claude alias (\`opus\`, \`sonnet\`, \`haiku\`, \`fable\`) or any \`claude-*\` value, and never the literal \`inherit\` or an empty string.
+- If a spawn is rejected because of the model (400 / unknown model), re-spawn once with no \`model\` and no \`reasoning_effort\`, and append \`- **Model:** {role} spawned without model — host rejected {id}\` to the active STAGE.md \`## Deviations\`. Never fail a stage over model availability.
 - If \`spawn_agent\` is not visible, discover tools with \`tool_search\` first. If it is still unavailable, or automatic spawning is not permitted, do the work inline in the current agent by following the agent contract the workflow names.
 - Parallel passes: spawn every agent first, collect the agent IDs, then \`collaboration.wait_agent(timeout_ms=...)\` for each. Do NOT use \`functions.wait(cell_id=...)\` — that is an unrelated exec-cell tool.
 - Read each agent's output for the structured markers the workflow expects, then \`close_agent(id)\` if that tool is visible.
@@ -463,7 +466,7 @@ Wherever the workflow calls for conversational prompting, ask in your response t
 - \`Read\`, \`Write\`, \`Glob\`, \`Grep\`, \`Task\`, \`WebSearch\`, \`WebFetch\` as needed.
 
 ## D. Subagents
-n2b workflows say "spawn ... using the Agent tool". Use \`Task(subagent_type="generalPurpose", prompt=...)\` with the workflow's prompt for that agent verbatim. Do NOT pass a \`model\` parameter; Cursor's configured model applies to every agent (see the Runtime rule in \`.cursor/n2b/references/model-profiles.md\`).
+n2b workflows say "spawn ... using the Agent tool". Use \`Task(subagent_type="generalPurpose", prompt=...)\` with the workflow's prompt for that agent verbatim. Do NOT pass a \`model\` parameter; Cursor's configured model applies to every agent (Transport Rules, \`.cursor/n2b/references/model-profiles.md\`: transport \`none\`).
 </cursor_skill_adapter>`;
 }
 
@@ -603,7 +606,7 @@ function collectFiles(dir, base = '') {
 
 // ─── Install pipeline: produce map → write → prune ───────────────────────────
 
-/** Read the source tree once: six commands + the n2b payload. */
+/** Read the source tree once: seven commands + the n2b payload (Markdown plus model-catalog.json). */
 function readSource(projectRoot) {
   const commandsDir = path.join(projectRoot, 'commands', COMMAND_PREFIX);
   const payloadDir = path.join(projectRoot, PAYLOAD_DIR);

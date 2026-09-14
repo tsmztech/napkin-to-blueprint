@@ -30,7 +30,7 @@ Before starting, read:
 - `.claude/n2b/references/ui-brand.md` — banner format (40 `━` characters, `n2b > {BANNER NAME}` prefix), the registered banner names, and status symbols (`✓` = complete, `○` = pending/in-progress)
 - `.claude/n2b/references/tracking-protocol.md` — all transition types; follow them as a checklist at each state change
 - `.claude/n2b/references/pipeline-gatekeeper.md` — entry gate (Check 1-3 flow, error formats, stage registry)
-- `.claude/n2b/references/model-profiles.md` — Per-Agent Model Mapping table and resolution logic for the Agent tool's `model` parameter
+- `.claude/n2b/references/model-profiles.md` — model routing: the `n2b-model-resolver` block, the rendered role table, and the per-runtime Transport Rules (data: `.claude/n2b/references/model-catalog.json` and `.n2b/config.json` `model_tiers`)
 
 Gate naming: this workflow's single gate is **Gate A — Structural Validation** (tracking identifiers `stage-3-gate-a-*`). Per ui-brand.md's registered banner set, its pass banner is `GATE A PASSED`; gate failures render the markdown gate-failure block, not a banner.
 
@@ -240,10 +240,6 @@ echo "SPEC_REVIEW=$SPEC_REVIEW"
 DS_SOURCE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('design_system_source','none'))" 2>/dev/null || echo "none")
 case "$DS_SOURCE" in none|user) ;; *) DS_SOURCE="none" ;; esac
 echo "DS_SOURCE=$DS_SOURCE"
-
-MODEL_PROFILE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('model_profile','balanced'))" 2>/dev/null || echo "balanced")
-case "$MODEL_PROFILE" in quality|balanced|budget|inherit) ;; *) MODEL_PROFILE="balanced" ;; esac
-echo "MODEL_PROFILE=$MODEL_PROFILE"
 ```
 
 **Batch-size resolution (once for this workflow):** the effective `BATCH_SIZE` for this invocation is, in precedence order:
@@ -260,7 +256,35 @@ echo "RECORDED_BATCH=${RECORDED_BATCH:-none}"
 
 `BATCH_SIZE=all` means every remaining feature of the **current pass** is processed in this invocation — the pass boundary still checkpoints. The resolved value is recorded into STAGE.md frontmatter at Step 1.5 (Path A writes it; Path B updates it only when `BATCH_OVERRIDE` was supplied, adding a `## Deviations` note: `- **Invocation:** batch size overridden to {BATCH_SIZE} for resume {RESUME_N} (--batch)`).
 
-**Model resolution (once for this workflow):** if MODEL_PROFILE is `inherit`, pass **no** `model` parameter on any spawn in this workflow (including the Feature Analyst model forwarded through the Requirements Architect prompt) — the host's default model applies (model-profiles.md, `inherit` profile). Otherwise, using MODEL_PROFILE, resolve each Stage 3 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Requirements Architect**, **Feature Analyst**, **Feature Spec Producer**, **Spec Quality Reviewer**, **Cross-Reference Reconciler**) and pass the resolved model as the Agent tool's `model` parameter on every spawn below — the mapping table is the single source; never hardcode a model name in this workflow. The Feature Analyst model is passed through the Requirements Architect's spawn prompt (the Architect spawns the analysts).
+**Model resolution (once for this workflow):** run the `n2b-model-resolver` block below — owned by `model-profiles.md` (Resolution Logic) and reproduced here verbatim. It prints `MODEL_PROFILE`, `MODEL_PROVIDER`, `RUNTIME`, `TRANSPORT`, and one line per agent role. Every spawn in this workflow takes its model from its role's line — Stage 3 uses `requirements-architect`, `feature-analyst`, `feature-spec-producer`, `spec-quality-reviewer`, `cross-reference-reconciler` — and applies it per the **Transport Rules** table for `RUNTIME` in `model-profiles.md` (on Claude Code: pass the ID as the Agent tool's `model` parameter). `(omit)` means pass **no** `model` parameter — never the literal string, never a guess. Never hardcode a model name in this workflow and never look a model up by hand. The Feature Analyst's line is forwarded through the Requirements Architect's spawn prompt (the Architect spawns the analysts) — forward the ID, or the instruction to omit `model`, exactly as resolved.
+
+```bash
+# n2b-model-resolver — resolve every agent role's model once per workflow (model-profiles.md, Resolution Logic). Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - <<'PYEOF'
+import json, re
+cfg = {}
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: pass
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+profile = cfg.get('model_profile', 'balanced')
+if profile not in cat['profiles']: profile = 'balanced'
+provider = cfg.get('model_provider')
+tiers = cfg.get('model_tiers')
+if not isinstance(tiers, dict):  # legacy config: materialize on the fly from the runtime's default provider
+    if provider != 'inherit' and provider not in cat['providers']: provider = cat['runtimes'][runtime]['defaultProvider']
+    tiers = cat['providers'].get(provider) or {}
+if profile == 'inherit' or provider == 'inherit': tiers = {}
+print(f"MODEL_PROFILE={profile} MODEL_PROVIDER={provider or 'inherit'} RUNTIME={runtime} TRANSPORT={cat['runtimes'][runtime]['transport']}")
+for role, row in cat['roles'].items():
+    tier = None if profile == 'inherit' else row[profile]
+    while tier and not (tiers.get(tier) or {}).get('model'):
+        tier = cat['fallback'].get(tier)
+    entry = (tiers.get(tier) or {}) if tier else {}
+    print(f"{role}: model={entry.get('model') or '(omit)'} reasoning_effort={entry.get('reasoning_effort') or '(omit)'}")
+PYEOF
+```
 
 **Design-system passthrough pre-flight.** Inspect the design-system intake directory (`.n2b/inputs/design-system/`, per config-schema.md's Design-System Intake section):
 
@@ -594,9 +618,9 @@ Dependency-map requirements: produce feature-dependency-map.md per your contract
 
 Brief validation: run your programmatic checks on every Feature Breakdown Brief per your contract — including Roles Touched present on every Spec Inventory row and all six frontmatter counts (spec_count, screen_count, automation_count, logic_rule_count, integration_count, notification_count — zero is a legal value, an absent field is not).
 
-Sub-agent model: spawn every Feature Analyst with the Agent tool's `model` parameter set to `{resolved Feature Analyst model}` (this workflow resolved it from model-profiles.md; use it for re-spawn cycles too)."
+Sub-agent model: spawn every Feature Analyst with model `{the feature-analyst line of the model resolution output — a model ID, or the instruction to omit the model parameter when it says (omit)}` applied per the Transport rule for this runtime in model-profiles.md (this workflow resolved it; use the same value for re-spawn cycles too)."
 - Tools: Read, Write, Bash, Agent
-- Model: resolved from the **Requirements Architect** (Stage 3) row of model-profiles.md under MODEL_PROFILE (Step 1)
+- Model: the `requirements-architect` line of the model resolution output (Step 1), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 150
 
 Wait for the Architect to complete. Verify the batch's feature folders and the dependency map exist:
@@ -762,7 +786,7 @@ Spawn ALL of the batch's producers in the SAME step (critical — they must run 
 - notification -> `.claude/n2b/references/stage-3/notification-spec-methodology.md` + `.claude/n2b/templates/stage-3/spec-notification.md`
 Run your Phase 2.5 self-review (all categories, including Analytics Coverage) before finishing — the self-review runs in every spec_review mode. Write all spec files per your contract's deliverables section. Do not ask for clarification — work autonomously."
 - Tools: Read, Write
-- Model: resolved from the **Feature Spec Producer** (Stage 3) row of model-profiles.md under MODEL_PROFILE (Step 1)
+- Model: the `feature-spec-producer` line of the model resolution output (Step 1), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 120
 
 **Per-producer completion handling.** As EACH spec producer returns, immediately update that feature's tracking. Reviewers are NEVER spawned in a Pass B invocation — independent review happens in the Pass C invocations, after every feature has specs.
@@ -831,7 +855,7 @@ For each feature to review:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/spec-quality-reviewer.md` and execute your complete task as described. Feature folder: `{feature_folder_path}` — review the feature-overview.md and every spec file in it (any of the five spec types: screen, automation, logic-rule, integration, notification). Read the dependency map at `.n2b/specifications/feature-dependency-map.md` and the relevant Stage 2 documents from `.n2b/features/` as cross-checking context. You review — you do not fix: report findings per your contract's output contract, classified by your contract's severity model (must-fix / should-fix / notes). Do not ask for clarification — work autonomously."
 - Tools: Read, Write
-- Model: resolved from the **Spec Quality Reviewer** (Stage 3) row of model-profiles.md under MODEL_PROFILE (Step 1)
+- Model: the `spec-quality-reviewer` line of the model resolution output (Step 1), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 70
 
 **Routing reviewer results (per feature):**
@@ -840,12 +864,12 @@ For each feature to review:
 - **Must-fix findings — one revision cycle (maximum 1 per feature):** Re-spawn that feature's Feature Spec Producer with the revision context:
   - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/feature-spec-producer.md`. Revision cycle (1 of maximum 1): an independent quality review found must-fix findings in this feature's specs. Feature folder: `{feature_folder_path}`. Must-fix findings (spec IDs + evidence): {reviewer's must-fix findings}. Revise ONLY the affected specs to resolve every must-fix finding, keeping all spec IDs, frontmatter, and section contracts intact. Re-run your Phase 2.5 self-review on the revised specs. Do not ask for clarification — work autonomously."
   - Tools: Read, Write
-  - Model: same as the original Feature Spec Producer spawn (the **Feature Spec Producer** row under MODEL_PROFILE)
+  - Model: same as the original Feature Spec Producer spawn (the `feature-spec-producer` line of the model resolution output)
   - maxTurns: 120
 
   Then re-review once — re-spawn the same feature's Spec Quality Reviewer with the identical review prompt plus: "Re-review after a revision cycle: verify each previously-reported must-fix finding is resolved; report any that remain."
   - Tools: Read, Write
-  - Model: same as the original Spec Quality Reviewer spawn (the **Spec Quality Reviewer** row under MODEL_PROFILE)
+  - Model: same as the original Spec Quality Reviewer spawn (the `spec-quality-reviewer` line of the model resolution output)
   - maxTurns: 70
 
   - If the re-review reports no remaining must-fix findings: update tracker `status: done`, `quality_passed: true`; STAGE.md Feature Progress `✅ DONE`, Quality column `reviewed: pass-after-revision`; increment `features_done`; record the revision cycle in `## Deviations` (`- **Pass C revision:** {FEAT-ID} — {count} must-fix findings, revised and re-reviewed clean`).
@@ -958,7 +982,7 @@ Spawn the Reconciler:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/cross-reference-reconciler.md` and execute your complete task as described. Specifications directory: `.n2b/specifications/`. Read all feature folders, specs, Briefs, and the Feature Dependency Map. The spec-type enum is five — screen, automation, logic-rule, integration, notification — and your dangling-reference and bidirectionality checks cover Integration and Notification specs too. Verify the dependency map's `## External Touchpoints` section is consistent with the Integration specs (every touchpoint row's spec exists and vice versa), Notification triggers are consistent with their automation/integration sources, and every Degradation Behavior screen reference exists. Run your Check 14 platform-parameter sweep: collect every `platform parameter:` marker into `.n2b/specifications/platform-parameters.md` from the template at `.claude/n2b/templates/stage-3/platform-parameters.md` (skip the file only when zero markers exist), proposing non-binding defaults grounded in `features/market-research.md` and BRIEF.md. Write your deliverables per your contract's deliverables section. Do not ask for clarification — work autonomously."
 - Tools: Read, Write, Bash
-- Model: resolved from the **Cross-Reference Reconciler** (Stage 3) row of model-profiles.md under MODEL_PROFILE (Step 1)
+- Model: the `cross-reference-reconciler` line of the model resolution output (Step 1), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 90
 
 Wait for the Reconciler to complete.
@@ -966,7 +990,7 @@ Wait for the Reconciler to complete.
 **Gap routing:** After the Reconciler finishes, check its output for gap classifications:
 
 - **`[STRUCTURAL-GAP]` findings:** Re-spawn the affected Feature Spec Producer for that feature with the gap context (same model as the original producer spawn). The re-spawn prompt must include: which spec needs fixing, what is missing, and the reconciler's evidence. Maximum 1 re-spawn cycle per feature.
-- **`[MISSING-SPEC]` findings:** Re-spawn the affected feature's Feature Analyst (via a new Agent call, model resolved from the **Feature Analyst** row under MODEL_PROFILE) to update the Brief, then spawn a Feature Spec Producer for the new spec (its usual resolved model). Maximum 1 cycle.
+- **`[MISSING-SPEC]` findings:** Re-spawn the affected feature's Feature Analyst (via a new Agent call, model from the `feature-analyst` line of the model resolution output) to update the Brief, then spawn a Feature Spec Producer for the new spec (its usual resolved model). Maximum 1 cycle.
 - **`[ALIGNMENT]` findings:** Already resolved by the Reconciler directly. No action needed.
 
 If any re-spawns occurred, run a final reconciliation pass (alignment-only) to verify consistency.

@@ -21,7 +21,7 @@ Before starting, read:
 - `.claude/n2b/references/ui-brand.md` — banner format (40 `━` characters, `n2b > {BANNER NAME}` prefix), the registered banner names (Stage 5 uses `PRE-FLIGHT`/`PRE-FLIGHT FAILED`, `EXPORT`, `EXPORT COMPLETE` plus the gatekeeper error formats), and status symbols
 - `.claude/n2b/references/tracking-protocol.md` — the `export-complete` and `stage-resume-s5` transitions; follow them as checklists. Stage 5's dashboard is a live document for the life of the project (explicitly exempt from the STAGE.md receipt write-lock); the per-target files are the receipts
 - `.claude/n2b/references/pipeline-gatekeeper.md` — entry gate (Check 1–3 flow, error formats, stage registry, Per-Stage Re-run Cleanup row 5)
-- `.claude/n2b/references/model-profiles.md` — Per-Agent Model Mapping table (rows: **Backlog Builder**, **Export Formatter**, **Export Fidelity Checker**) and resolution logic for the Agent tool's `model` parameter
+- `.claude/n2b/references/model-profiles.md` — model routing: the `n2b-model-resolver` block, the rendered role table, and the per-runtime Transport Rules (data: `.claude/n2b/references/model-catalog.json` and `.n2b/config.json` `model_tiers`)
 - `.claude/n2b/references/stage-5/export-target-registry.md` — the plugin table this workflow iterates (Target key · Consumer category · Formatter agent · Template · Output dir · Needs backlog.json · Status) and the two-level picker copy
 - `.claude/n2b/references/stage-5/fidelity-rules.md` — the Gate 4a rule set and roster-derivation greps; this workflow executes them inline at Step 4a
 
@@ -393,7 +393,7 @@ Spawn the Backlog Builder:
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-5/backlog-builder.md` and execute your complete task as described. Blueprint package root: `.n2b/` — read every canonical input fresh from disk. Manifest: `.n2b/tracking/MANIFEST.md`. Write your output to `{OUT_DIR}backlog.json`. Package version: {PKG_VERSION}. Do not write any tracking file. Do not ask for clarification — work autonomously."
 - Tools: Read, Write, Bash
-- Model: resolved from the **Backlog Builder** (Stage 5 — export) row of model-profiles.md under MODEL_PROFILE (resolved at Step 3 — resolve it before this spawn when this step is active)
+- Model: the `backlog-builder` line of the model resolution output (the resolver runs at Step 3 — run it before this spawn when this step is active), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 120
 
 After it completes, verify `{OUT_DIR}backlog.json` exists and is non-empty (`[ -s "{OUT_DIR}backlog.json" ]`); if missing, treat as a render failure: enter the Step 4 re-prompt loop with `GATE_ERRORS="Backlog Builder produced no backlog.json"` (the re-prompt re-spawns the Backlog Builder, not the formatter, for this error). Display `  ✓  backlog.json built` on success.
@@ -402,15 +402,35 @@ After it completes, verify `{OUT_DIR}backlog.json` exists and is non-empty (`[ -
 
 ## Step 3 — Formatter Render
 
-**Model resolution (once for this workflow):**
+**Model resolution (once for this workflow):** run the `n2b-model-resolver` block below — owned by `model-profiles.md` (Resolution Logic) and reproduced here verbatim. It prints `MODEL_PROFILE`, `MODEL_PROVIDER`, `RUNTIME`, `TRANSPORT`, and one line per agent role. Every spawn in this workflow takes its model from its role's line — Stage 5 uses `backlog-builder`, `export-formatter`, `export-fidelity-checker` — and applies it per the **Transport Rules** table for `RUNTIME` in `model-profiles.md` (on Claude Code: pass the ID as the Agent tool's `model` parameter). `(omit)` means pass **no** `model` parameter — never the literal string, never a guess. Never hardcode a model name in this workflow and never look a model up by hand.
 
 ```bash
-MODEL_PROFILE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('model_profile','balanced'))" 2>/dev/null || echo "balanced")
-case "$MODEL_PROFILE" in quality|balanced|budget|inherit) ;; *) MODEL_PROFILE="balanced" ;; esac
-echo "MODEL_PROFILE=$MODEL_PROFILE"
+# n2b-model-resolver — resolve every agent role's model once per workflow (model-profiles.md, Resolution Logic). Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - <<'PYEOF'
+import json, re
+cfg = {}
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: pass
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+profile = cfg.get('model_profile', 'balanced')
+if profile not in cat['profiles']: profile = 'balanced'
+provider = cfg.get('model_provider')
+tiers = cfg.get('model_tiers')
+if not isinstance(tiers, dict):  # legacy config: materialize on the fly from the runtime's default provider
+    if provider != 'inherit' and provider not in cat['providers']: provider = cat['runtimes'][runtime]['defaultProvider']
+    tiers = cat['providers'].get(provider) or {}
+if profile == 'inherit' or provider == 'inherit': tiers = {}
+print(f"MODEL_PROFILE={profile} MODEL_PROVIDER={provider or 'inherit'} RUNTIME={runtime} TRANSPORT={cat['runtimes'][runtime]['transport']}")
+for role, row in cat['roles'].items():
+    tier = None if profile == 'inherit' else row[profile]
+    while tier and not (tiers.get(tier) or {}).get('model'):
+        tier = cat['fallback'].get(tier)
+    entry = (tiers.get(tier) or {}) if tier else {}
+    print(f"{role}: model={entry.get('model') or '(omit)'} reasoning_effort={entry.get('reasoning_effort') or '(omit)'}")
+PYEOF
 ```
-
-If MODEL_PROFILE is `inherit`, pass **no** `model` parameter on any spawn in this workflow — the host's default model applies (model-profiles.md, `inherit` profile). Otherwise resolve each Stage 5 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Backlog Builder**, **Export Formatter**, **Export Fidelity Checker**) and pass the resolved model as the Agent tool's `model` parameter on every spawn — the mapping table is the single source; never hardcode a model name in this workflow.
 
 Display the EXPORT banner and the run map:
 
@@ -441,7 +461,7 @@ Spawn the target's formatter agent (from its registry row — **paths only, neve
 
 - Prompt: "Read the agent contract at `{FMT_AGENT}` and execute your complete task as described. Blueprint package root: `.n2b/` — read every canonical input fresh from disk; content is never passed to you through this prompt. Manifest: `.n2b/tracking/MANIFEST.md`. Target template: `{TPL_PATH}`. Output directory: `{OUT_DIR}`. Package version: {PKG_VERSION}. Write every rendered file for this target into the output directory. Do NOT write FIDELITY-REPORT.md or EXPORT-RECEIPT.md — the workflow's gate and receipt steps own those. Do not write to any path outside `{OUT_DIR}`, and never write tracking files. Do not ask for clarification — work autonomously."
 - Tools: Read, Write, Bash
-- Model: resolved from the **Export Formatter** (Stage 5 — all targets) row of model-profiles.md under MODEL_PROFILE
+- Model: the `export-formatter` line of the model resolution output, applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 150
 
 After the formatter completes, verify it produced output:
@@ -490,7 +510,7 @@ Spawn the Export Fidelity Checker (parameterized by target — paths only):
 
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-5/export-fidelity-checker.md` and execute your complete task as described. Export target: `{TARGET}`. Rendered export directory: `{OUT_DIR}`. Target template: `{TPL_PATH}` — read it to learn this target's file layout and transclusion contract. Blueprint package root: `.n2b/` — compare the render against the canonical documents by reading both fresh from disk. Manifest: `.n2b/tracking/MANIFEST.md`. Fidelity report template: `.claude/n2b/templates/stage-5/fidelity-report.md`. Write your report to `{OUT_DIR}FIDELITY-REPORT.md`. Write nothing else — no tracking files, no edits to the rendered export. Do not ask for clarification — work autonomously."
 - Tools: Read, Bash, Write
-- Model: resolved from the **Export Fidelity Checker** (Stage 5 — export) row of model-profiles.md under MODEL_PROFILE
+- Model: the `export-fidelity-checker` line of the model resolution output, applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 100
 
 After it completes, verify the report exists (`[ -s "{OUT_DIR}FIDELITY-REPORT.md" ]` — if missing, re-spawn the checker once; if still missing, treat as a fail finding "fidelity checker produced no report") and read its verdict — the pass/fail field pinned by the fidelity-report template (probe the frontmatter/result line, e.g.):
@@ -674,7 +694,7 @@ End the invocation.
 - Step 1 pre-flight is manifest-driven (D6): Stage 4 STAGE.md `status: complete` + a bash loop over every `.n2b/tracking/MANIFEST.md` `## Package Inventory` path (exists + non-empty) — no hardcoded artifact list; failure renders the `PRE-FLIGHT FAILED` banner naming each missing file and the producing stage command (stage-number → command mapping), with zero tracking writes
 - Step 2 indexing is workflow-owned with NO agent (D1): every inventory path re-hashed (`shasum -a 256 | cut -c1-12`); on mismatch the workflow refreshes only the changed rows' Fingerprint + Updated cells, bumps `package_version` by 1, refreshes `last_updated`, and prints the prior-exports-now-stale notice; Export History rows are never edited here; `PKG_VERSION` recorded for the receipt
 - Step 2.5 spawns the Backlog Builder only when the registry row says `Needs backlog.json: yes` (no Phase 0 target does — self-documenting and inert for dev-brief); when active it passes paths only and the Backlog Builder model row
-- Step 3 renders the `EXPORT` banner (ui-brand set), resolves MODEL_PROFILE once from `.n2b/config.json` (`model_profile`, default `balanced`) and every spawn's model from model-profiles.md rows (Backlog Builder / Export Formatter / Export Fidelity Checker) — no hardcoded model names; the formatter spawn passes PATHS ONLY (package root `.n2b/`, manifest, target template, output dir) plus the scalar `PKG_VERSION`, and forbids the formatter from writing FIDELITY-REPORT.md, EXPORT-RECEIPT.md, tracking files, or anything outside the output dir
+- Step 3 renders the `EXPORT` banner (ui-brand set), runs the `n2b-model-resolver` once and takes every spawn's model from its role line (backlog-builder / export-formatter / export-fidelity-checker) per model-profiles.md's Transport Rules — no hardcoded model names; the formatter spawn passes PATHS ONLY (package root `.n2b/`, manifest, target template, output dir) plus the scalar `PKG_VERSION`, and forbids the formatter from writing FIDELITY-REPORT.md, EXPORT-RECEIPT.md, tracking files, or anything outside the output dir
 - Step 4a executes the rules in `fidelity-rules.md` inline (reference-defines / workflow-executes, same relationship as the gatekeeper), deriving ID rosters fresh by grep at gate time — no roster file written; failures accumulate `GATE_ERRORS` with per-rule evidence; Step 4b spawns the Export Fidelity Checker parameterized by target (target key, export dir, **target template `TPL_PATH`**, canonical root), which writes `FIDELITY-REPORT.md` from its template; 4a and 4b share one retry budget — max 3 formatter re-prompts (error list appended to the same paths-only prompt), then HALT; a `GATE_ERRORS` set that is entirely U6 lint hits skips the re-prompt loop (upstream-document defect — re-rendering cannot fix it) and halts with routing to the owning stage
 - Step 4c: the fidelity report's §1 Reconciliation Summary is **workflow-appended** (one row per executed 4a rule with expected/found values + attempts note) on both the pass path and the exhausted-budget halt path — the checker owns §2 only, and the shipped report never carries placeholder rows
 - A gate failure NEVER sets `pipeline_status` and never touches PIPELINE.md (tracking-protocol `gate-fail` is Stages 1–4 only): the failure is recorded in the per-target tracker (`fidelity_result: fail`, status stays `in-progress`) and dashboard only, STATE.md body Session Continuity routes to `/n2b:s5-export {target}`, and the branded `EXPORT GATE FAILED` banner shows the unresolved errors and states the blueprint is untouched

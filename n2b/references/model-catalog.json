@@ -1,0 +1,61 @@
+{
+  "_comment": "Single source of truth for n2b's model routing. Workflows read `roles` and `fallback`; Stage 1 Step 6.5 and the config command materialize `providers[<name>]` into `.n2b/config.json` `model_tiers`, which is what spawns read. The rendered table in model-profiles.md is a projection of `roles` and is checked against this file by `npm test`. Model IDs under `providers` were copied from gsd-core bin/shared/model-catalog.json on 2026-09-13 and go stale — Claude Code uses tier aliases (never stale) and `generic` lets a user type their own IDs.",
+  "updated": "2026-09-13",
+
+  "profiles": ["quality", "balanced", "budget", "inherit"],
+  "tiers": ["frontier", "heavy", "standard", "light"],
+  "fallback": { "frontier": "heavy", "heavy": "standard", "standard": "light" },
+
+  "roles": {
+    "visionary":                  { "label": "Visionary",                  "stage": 2, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-2/n2b-visionary.md"] },
+    "researcher":                 { "label": "Researcher",                 "stage": 2, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-2/n2b-researcher.md"] },
+    "synthesizer":                { "label": "Synthesizer",                "stage": 2, "quality": "frontier", "balanced": "heavy",    "budget": "standard", "agents": ["stage-2/n2b-synthesizer.md"] },
+    "requirements-architect":     { "label": "Requirements Architect",     "stage": 3, "quality": "frontier", "balanced": "heavy",    "budget": "standard", "agents": ["stage-3/requirements-architect.md"] },
+    "feature-analyst":            { "label": "Feature Analyst",            "stage": 3, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-3/feature-analyst.md"] },
+    "feature-spec-producer":      { "label": "Feature Spec Producer",      "stage": 3, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-3/feature-spec-producer.md"] },
+    "spec-quality-reviewer":      { "label": "Spec Quality Reviewer",      "stage": 3, "quality": "heavy",    "balanced": "standard", "budget": "light",    "agents": ["stage-3/spec-quality-reviewer.md"] },
+    "cross-reference-reconciler": { "label": "Cross-Reference Reconciler", "stage": 3, "quality": "frontier", "balanced": "heavy",    "budget": "standard", "agents": ["stage-3/cross-reference-reconciler.md"] },
+    "profile-analyst":            { "label": "Profile Analyst",            "stage": 4, "quality": "heavy",    "balanced": "standard", "budget": "light",    "agents": ["stage-4/profile-analyst.md"] },
+    "technical-researcher":       { "label": "Technical Researcher",       "stage": 4, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-4/technical-researcher.md"] },
+    "feasibility-planner":        { "label": "Feasibility Planner",        "stage": 4, "quality": "frontier", "balanced": "heavy",    "budget": "standard", "agents": ["stage-4/feasibility-planner.md"] },
+    "technical-architect":        { "label": "Technical Architect",        "stage": 4, "quality": "frontier", "balanced": "heavy",    "budget": "standard", "agents": ["stage-4/technical-architect.md"] },
+    "schema-designer":            { "label": "Schema Designer",            "stage": 4, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-4/schema-designer.md"] },
+    "backlog-builder":            { "label": "Backlog Builder",            "stage": 5, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-5/backlog-builder.md"] },
+    "export-formatter":           { "label": "Export Formatter",           "stage": 5, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-5/export-agent-workspace-formatter.md", "stage-5/export-backlog-formatter.md", "stage-5/export-dev-brief-formatter.md", "stage-5/export-jira-formatter.md", "stage-5/export-prd-formatter.md", "stage-5/export-speckit-formatter.md", "stage-5/export-vibe-pack-formatter.md"] },
+    "export-fidelity-checker":    { "label": "Export Fidelity Checker",    "stage": 5, "quality": "heavy",    "balanced": "standard", "budget": "standard", "agents": ["stage-5/export-fidelity-checker.md"] }
+  },
+
+  "providers": {
+    "claude-aliases": {
+      "frontier": { "model": "fable" },
+      "heavy":    { "model": "opus" },
+      "standard": { "model": "sonnet" },
+      "light":    { "model": "haiku" }
+    },
+    "anthropic": {
+      "frontier": { "model": "anthropic/claude-fable-5" },
+      "heavy":    { "model": "anthropic/claude-opus-4-8" },
+      "standard": { "model": "anthropic/claude-sonnet-5" },
+      "light":    { "model": "anthropic/claude-haiku-4-5" }
+    },
+    "openai": {
+      "frontier": { "model": "gpt-5.6-sol",   "reasoning_effort": "xhigh" },
+      "heavy":    { "model": "gpt-5.6-sol",   "reasoning_effort": "high" },
+      "standard": { "model": "gpt-5.6-terra", "reasoning_effort": "medium" },
+      "light":    { "model": "gpt-5.6-luna",  "reasoning_effort": "medium" }
+    },
+    "generic": {
+      "frontier": null,
+      "heavy":    null,
+      "standard": null,
+      "light":    null
+    }
+  },
+
+  "runtimes": {
+    "claude":   { "transport": "spawn-alias",         "defaultProvider": "claude-aliases", "effort": false, "offerProviderChoice": false, "knownProviders": ["claude-aliases"] },
+    "codex":    { "transport": "spawn-if-advertised", "defaultProvider": "inherit",        "effort": true,  "offerProviderChoice": true,  "knownProviders": ["openai", "generic"] },
+    "opencode": { "transport": "agent-frontmatter",   "defaultProvider": "inherit",        "effort": false, "offerProviderChoice": true,  "knownProviders": ["anthropic", "openai", "generic"] },
+    "cursor":   { "transport": "none",                "defaultProvider": "inherit",        "effort": false, "offerProviderChoice": false, "knownProviders": [] }
+  }
+}

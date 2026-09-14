@@ -1,5 +1,12 @@
 {
   "model_profile": "balanced",
+  "model_provider": "claude-aliases",
+  "model_tiers": {
+    "frontier": { "model": "fable" },
+    "heavy": { "model": "opus" },
+    "standard": { "model": "sonnet" },
+    "light": { "model": "haiku" }
+  },
   "spec_review": "independent",
   "design_system_source": "none",
   "created": "{DATE}",

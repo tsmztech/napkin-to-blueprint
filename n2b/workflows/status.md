@@ -12,6 +12,7 @@ Before starting, read these files:
 
 - `.n2b/tracking/PIPELINE.md` — primary source for pipeline state (frontmatter: pipeline_status, active_stage, last_completed_stage, project_name; body: stage checklist lines and the `## Export History` table)
 - `.n2b/tracking/STATE.md` — current step and stage status (frontmatter: current_step, stage_status; body: Current Position section)
+- `.n2b/config.json` — pipeline settings, for the one-line `Models:` display only (this workflow never writes it — `/n2b:config` does)
 - `.n2b/tracking/MANIFEST.md` — canonical package manifest (frontmatter: package_version; body: `## Package Inventory` table). May not exist before the first stage completes — handle absence per Step 3.
 - Active STAGE.md — path depends on active_stage value from PIPELINE.md (see stage path mapping in Step 2)
 - `n2b/references/ui-brand.md` — banner format (exactly 40 `━` characters, `n2b > {BANNER NAME}` prefix)
@@ -75,6 +76,22 @@ Read PIPELINE.md body — extract the stage checklist lines (all lines starting 
 Count complete stages: count the number of `- [x]` occurrences **among the Stage 1–4 checklist lines only**. This is the `stages_complete` value for the progress bar (0–4). The Stage 5: Export checklist row is NOT counted toward the progress bar — record its checked state separately as `stage5_row_checked` (it is ticked by the first-ever completed export and feeds the Exports section, not the bar).
 
 Read the `## Export History` table from the PIPELINE.md body. Record every data row as `export_rows`: `#`, `Target`, `Package version`, `Artifacts`, `Completed at`, `Status` (`current | stale`). Zero rows is normal (no exports yet).
+
+Read the pipeline settings for the Models line (config-schema.md; the shape may be legacy — pre-`model_tiers`):
+
+```bash
+python3 -c "
+import json
+try: c=json.load(open('.n2b/config.json'))
+except Exception: print('MODELS=(no config.json yet)'); raise SystemExit
+p=c.get('model_profile','balanced'); pr=c.get('model_provider'); t=c.get('model_tiers')
+if not isinstance(t,dict): print(f'MODELS={p} (pre-0.3 config — run /n2b:config to materialize model tiers)'); raise SystemExit
+ids=[k+' '+t[k]['model']+(' ('+t[k]['reasoning_effort']+')' if t[k].get('reasoning_effort') else '') for k in ('frontier','heavy','standard','light') if isinstance(t.get(k),dict) and t[k].get('model')]
+print('MODELS=inherit (session model)' if p=='inherit' or pr=='inherit' or not ids else f'MODELS={p} · {pr} ('+' / '.join(ids)+')')
+"
+```
+
+Record the printed value (after `MODELS=`) as `models_line`. `/n2b:config` owns changes to these settings; this workflow only displays them.
 
 Read STATE.md frontmatter:
 
@@ -394,6 +411,7 @@ n2b > STATUS
 # {project_name}
 
 Progress: {progress_bar} {percent}%  ({stages_complete} of 4 stages)
+Models: {models_line}   (change: /n2b:config)
 
 {stage checklist copied verbatim from PIPELINE.md body — all lines with - [ ] / - [x] and any ← ACTIVE / ← NEXT markers. The Stage 5: Export line displays as part of the verbatim checklist but never counts toward the progress bar.}
 
@@ -434,6 +452,7 @@ n2b > STATUS
 # {project_name}
 
 Progress: ████████ 100%  (4 of 4 stages)
+Models: {models_line}   (change: /n2b:config)
 
 {stage checklist verbatim from PIPELINE.md body}
 
@@ -482,7 +501,7 @@ The package inventory ALWAYS renders from MANIFEST.md rows — there is no fallb
 - Integrity scan runs: derive from artifacts → compare to PIPELINE.md → flag drift/corruption → cross-check STAGE.md — and covers Stages 1–4 AND Stage 5 exports (`.n2b/exports/` vs Export History rows), including the manifest presence check (MANIFEST.md absent while stages claim completion = drift finding)
 - Drift offers confirmed auto-repair with user prompt before writing anything; corruption flags without repair; manifest and export findings are flagged with routes but never auto-repaired (this workflow never writes MANIFEST.md or Export History rows)
 - Export staleness: any Export History row whose Package version < MANIFEST package_version reports `⚠ STALE (upstream changed since export)` and routes to `/n2b:s5-export {target}`; matching version reports fresh; staleness never counts as an integrity failure
-- Console report displays: progress bar (8-char `█`/`░` spanning Stages 1–4 only), checkbox stage list (verbatim from PIPELINE.md), current position, integrity status, Exports section (own section — never a progress segment), and next action
+- Console report displays: progress bar (8-char `█`/`░` spanning Stages 1–4 only), a `Models:` line from `.n2b/config.json` (profile · provider · tier IDs, or `inherit (session model)`, or a pre-0.3 notice), checkbox stage list (verbatim from PIPELINE.md), current position, integrity status, Exports section (own section — never a progress segment), and next action
 - All 5 routing conditions are handled, covering every `pipeline_status` enum value plus not-initialized: no PIPELINE.md → s1-init, `failed` → re-run command, `running` → resume command, `blueprint-complete` → handoff-package block with manifest inventory + export offers, `paused` → next stage command
 - Progress bar uses fixed mapping (0→0%, 1→25%, 2→50%, 3→75%, 4→100%)
 - Banner uses exactly 40 `━` characters with `n2b > STATUS` (per ui-brand.md §Banner Format)
