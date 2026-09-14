@@ -2,7 +2,7 @@
 
 Show or change the pipeline settings in `.n2b/config.json` after Stage 1 has written them. This is the "anytime" companion to `/n2b:status`: it owns every field `config-schema.md` registers as writable after intake — `model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source` — and it is the only way to change them without re-running Stage 1.
 
-It is programmatic, not judged: flags are parsed and validated, the config is rewritten by the `n2b-model-materializer` script that Stage 1 Step 6.5 also uses, and the result is printed back. The interactive path (no flags) asks exactly the questions Stage 1 Step 6.5 asks, runtime-aware, plus the two Stage 1 writes silently (spec review, design system). It never writes a tracking file and never re-runs any stage.
+It is programmatic, not judged: flags are parsed and validated, the config is rewritten by the `n2b-model-materializer` script that Stage 1 Step 6.5 also uses, the `n2b-agent-sync` script then pushes the result into the native agent files on runtimes that route that way (OpenCode), and the result is printed back. The interactive path (no flags) asks exactly the questions Stage 1 Step 6.5 asks, runtime-aware, plus the two Stage 1 writes silently (spec review, design system). It never writes a tracking file and never re-runs any stage.
 
 </purpose>
 
@@ -12,7 +12,7 @@ Before starting, read these files:
 
 - `.n2b/config.json` — the current settings (may be a legacy five-field file from before `model_provider`/`model_tiers` existed — the materializer upgrades it)
 - `n2b/references/config-schema.md` — field owner: allowed values, defaults, readers
-- `n2b/references/model-profiles.md` — the `n2b-model-materializer` and `n2b-model-resolver` blocks (run verbatim), the Transport Rules, the runtime stamp
+- `n2b/references/model-profiles.md` — the `n2b-model-materializer`, `n2b-model-resolver`, and `n2b-agent-sync` blocks (run verbatim), the Transport Rules, the runtime stamp
 - `n2b/references/model-catalog.json` — providers, tiers, `runtimes.<id>.knownProviders` (data behind the questions)
 - `n2b/references/ui-brand.md` — banner format
 
@@ -20,6 +20,7 @@ Before starting, read these files:
 
 <!-- Anti-patterns:
      - Do NOT hand-edit .n2b/config.json — every write goes through the materializer block
+     - Do NOT hand-edit .claude/agents/n2b-*.md — the agent-sync block owns their `model:` line and nothing else in them is n2b state
      - Do NOT touch .n2b/tracking/ — this command changes settings, not pipeline state
      - Do NOT re-ask what a flag already answered — flags are authoritative; ask only on a bare invocation
      - Do NOT pick a default when the user cancels the interactive path — print the current config and stop
@@ -117,7 +118,7 @@ Per-agent models right now ({model_profile}):
 
 {If the resolver printed MODEL_PROVIDER=inherit or every role is (omit): "Every agent runs on the host's session model."}
 {If model_tiers was absent from the file (legacy config): "⚠ Legacy config (pre-0.3) — shown values are the runtime defaults. Any change below rewrites it into the current shape."}
-{If RUNTIME is opencode and any role has a model: "ℹ OpenCode applies these tiers through native agent files, which n2b does not ship yet — recorded, not yet applied."}
+{If RUNTIME is opencode: "ℹ OpenCode runs each agent on the `model:` line of .claude/agents/n2b-<role>.md, kept in sync by this command — after reinstalling n2b, run /n2b:config again."}
 
 Change with: /n2b:config --profile <p> · --provider <name> · --set <tier>=<id> · --spec-review <v> · --design-system <v>
 ```
@@ -196,6 +197,45 @@ PYEOF
 
 The script prints the written file, or a `CONFIG-ERROR:` line and exits non-zero having written nothing — surface that line verbatim and stop.
 
+Then run the **`n2b-agent-sync`** block from `model-profiles.md` verbatim (a no-op except on OpenCode, where it writes or strips the `model:` line of every `.claude/agents/n2b-<role>.md` from the config just written; surface its summary line, and a `MISSING` line as `⚠ re-run the installer, then /n2b:config`):
+
+```bash
+# n2b-agent-sync — write or strip the `model:` line of each native agent file from .n2b/config.json model_tiers (model-profiles.md, Syncing Native Agent Files). No-op unless the runtime's transport is agent-frontmatter. Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - <<'PYEOF'
+import json, re, os
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+transport = cat['runtimes'][runtime]['transport']
+if transport != 'agent-frontmatter': print(f"AGENT-SYNC: n/a — {runtime} routes via {transport}, no agent files to update"); raise SystemExit
+cfg = {}
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: pass
+profile = cfg.get('model_profile') if cfg.get('model_profile') in cat['profiles'] else 'inherit'
+tiers = cfg.get('model_tiers') if isinstance(cfg.get('model_tiers'), dict) else {}
+if profile == 'inherit' or cfg.get('model_provider') == 'inherit': tiers = {}
+updated = missing = 0
+for role, row in cat['roles'].items():
+    tier = None if profile == 'inherit' else row[profile]
+    while tier and not (tiers.get(tier) or {}).get('model'):
+        tier = cat['fallback'].get(tier)
+    model = (tiers.get(tier) or {}).get('model') if tier else None
+    path = f'.claude/agents/n2b-{role}.md'
+    if not os.path.exists(path): missing += 1; print(f"AGENT-SYNC: {role} MISSING {path} — re-run the n2b installer"); continue
+    text = open(path).read()
+    m = re.match(r'^---\n(.*?)\n---\n', text, re.S)
+    if not m: missing += 1; print(f"AGENT-SYNC: {role} SKIPPED {path} — no frontmatter"); continue
+    lines = [l for l in m.group(1).split('\n') if not l.startswith('model:')]
+    if model:
+        at = next((i for i, l in enumerate(lines) if l.startswith('mode:')), len(lines) - 1) + 1
+        lines.insert(at, f'model: {model}')
+    new = '---\n' + '\n'.join(lines) + '\n---\n' + text[m.end():]
+    if new != text: open(path, 'w').write(new); updated += 1
+    print(f"AGENT-SYNC: {role} model={model or '(none — session model)'}")
+print(f"AGENT-SYNC: {updated} of {len(cat['roles'])} agent files changed, {missing} missing")
+PYEOF
+```
+
 Then display `✓ Pipeline settings updated` and the Step 1 show block (re-run the resolver so the per-agent list reflects the new file). Close with the one-line consequence note that applies:
 - profile/provider/tier changed → `Takes effect on the next stage command. Stages already completed are not re-run.`
 - `spec_review` changed while Stage 3 is in progress → `Applies to the next Stage 3 batch (/n2b:s3-specify --continue).`
@@ -205,7 +245,7 @@ Then display `✓ Pipeline settings updated` and the Step 1 show block (re-run t
 
 <success_criteria>
 
-- Never writes anything but `.n2b/config.json`, and only through the `n2b-model-materializer` block; never touches `.n2b/tracking/`
+- Never writes anything but `.n2b/config.json` (only through the `n2b-model-materializer` block) and, on OpenCode, the `model:` line of `.claude/agents/n2b-*.md` (only through the `n2b-agent-sync` block); never touches `.n2b/tracking/`
 - `--show` prints runtime, the seven fields, and the per-agent resolution from the `n2b-model-resolver` block — the same block every stage workflow runs, so what it shows is what the next stage will do
 - Flags are authoritative and programmatic: parsed, validated against the catalog, applied without any question; unknown flags and invalid values stop the command with one line and no write
 - Bare invocation asks the Stage 1 Step 6.5 questions for this runtime (runtime read from the `n2b-runtime` stamp) plus spec review and design system; cancel = no write

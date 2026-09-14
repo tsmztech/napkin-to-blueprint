@@ -245,7 +245,7 @@ test('R6 rewriteSubagentTypes: appends subagent_type only where agentKind is set
   assert.ok(mentions.length >= 15, `expected the workflow spawns, got ${mentions.length}`);
   for (const m of mentions) assert.ok(m.annotated, `${m.file}: ${m.contract} not annotated`);
   assert.ok(mentions.some((m) => m.file === 'n2b/agents/stage-3/requirements-architect.md'), 'nested Feature Analyst spawn annotated too');
-  for (const rt of [codex, cursor]) for (const v of buildInstallMap(readSource(REPO), rt).values()) assert.ok(!/subagent_type: "n2b-/.test(v.toString()), `${rt.id} must not carry subagent_type`);
+  for (const rt of [codex, cursor]) for (const v of buildInstallMap(readSource(REPO), rt).values()) assert.ok(!/subagent_type: "n2b-[a-z][a-z-]*"/.test(v.toString()), `${rt.id} must not carry a concrete subagent_type (the Transport Rules prose template is fine)`);
 });
 
 test('stampRuntime rewrites the marker to the target id; source marker says claude', () => {
@@ -662,27 +662,33 @@ test('model-profiles.md rendered role table matches the catalog', () => {
   assert.deepStrictEqual(rendered, expected, 'model-profiles.md table drifted from model-catalog.json — the catalog is the source of truth; re-render the table');
 });
 
-test('resolver and materializer blocks: owned by model-profiles.md, copied verbatim into every consumer', () => {
+test('resolver, materializer and agent-sync blocks: owned by model-profiles.md, copied verbatim into every consumer', () => {
   const md = fs.readFileSync(PROFILES_PATH, 'utf8');
   const [resolver] = fencedBlocks(md, '# n2b-model-resolver');
   const [materializer] = fencedBlocks(md, '# n2b-model-materializer');
-  assert.ok(resolver && materializer, 'model-profiles.md must define both blocks');
+  const [sync] = fencedBlocks(md, '# n2b-agent-sync');
+  assert.ok(resolver && materializer && sync, 'model-profiles.md must define all three blocks');
   assert.ok(resolver.includes(".claude/n2b/references/model-catalog.json") && resolver.includes(".claude/n2b/references/model-profiles.md"));
   assert.ok(!/n2b-runtime: claude/.test(resolver), 'resolver reads the stamp at run time — it must not carry one');
+  assert.ok(sync.includes('.claude/agents/n2b-{role}.md') && sync.includes("'agent-frontmatter'") && !/inherit/.test(sync.replace(/'inherit'/g, '')), 'sync targets the agent files, gates on transport, never writes the word inherit');
   const consumers = {
-    resolver: ['n2b/workflows/stage-2/define.md', 'n2b/workflows/stage-3/specify.md', 'n2b/workflows/stage-4/architect.md', 'n2b/workflows/stage-5/export.md', 'n2b/workflows/config.md'],
-    materializer: ['n2b/workflows/stage-1/init.md', 'n2b/workflows/config.md'],
+    'model-resolver': { block: resolver, files: ['n2b/workflows/stage-2/define.md', 'n2b/workflows/stage-3/specify.md', 'n2b/workflows/stage-4/architect.md', 'n2b/workflows/stage-5/export.md', 'n2b/workflows/config.md'] },
+    'model-materializer': { block: materializer, files: ['n2b/workflows/stage-1/init.md', 'n2b/workflows/config.md'] },
+    'agent-sync': { block: sync, files: ['n2b/workflows/stage-1/init.md', 'n2b/workflows/config.md'] },
   };
-  for (const [kind, files] of Object.entries(consumers)) {
-    const canonical = kind === 'resolver' ? resolver : materializer;
+  for (const [kind, { block: canonical, files }] of Object.entries(consumers)) {
     for (const rel of files) {
-      const blocks = fencedBlocks(fs.readFileSync(path.join(REPO, rel), 'utf8'), `# n2b-model-${kind}`);
+      const blocks = fencedBlocks(fs.readFileSync(path.join(REPO, rel), 'utf8'), `# n2b-${kind}`);
       assert.strictEqual(blocks.length, 1, `${rel} must carry exactly one ${kind} block`);
       assert.strictEqual(blocks[0], canonical, `${rel} ${kind} block differs from model-profiles.md`);
     }
   }
+  // the OpenCode transport row and the Stage 1 notice no longer say "not yet"
+  for (const rel of ['n2b/references/model-profiles.md', 'n2b/workflows/stage-1/init.md', 'n2b/workflows/config.md']) {
+    assert.ok(!/does not ship yet|not yet applied|not ship yet/.test(fs.readFileSync(path.join(REPO, rel), 'utf8')), `${rel} still describes OpenCode routing as unshipped`);
+  }
   // no workflow resolves models the old way any more
-  for (const rel of consumers.resolver) {
+  for (const rel of consumers['model-resolver'].files) {
     const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
     assert.ok(!/Per-Agent Model Mapping table/.test(text), `${rel} still points at the table`);
     assert.ok(!/case "\$MODEL_PROFILE"/.test(text), `${rel} still has the old case guard`);
@@ -794,6 +800,82 @@ test('resolver + materializer end-to-end (python3): Claude spawns unchanged, inh
   assert.deepStrictEqual(roles.synthesizer, { model: 'gpt-5.6-sol', effort: 'xhigh' });
   assert.deepStrictEqual(roles.visionary, { model: 'gpt-5.6-sol', effort: 'high' });
   for (const v of Object.values(roles)) assert.ok(!/^(fable|opus|sonnet|haiku)$/.test(v.model), 'no alias on codex');
+});
+
+test('agent-sync end-to-end (python3): OpenCode agent files get model: from model_tiers, inherit strips it, idempotent, n/a elsewhere', function () {
+  if (!hasPython) { console.log('      (python3 not found — skipped)'); return; }
+  const md = fs.readFileSync(PROFILES_PATH, 'utf8');
+  const materializer = pythonBody(fencedBlocks(md, '# n2b-model-materializer')[0]);
+  const sync = pythonBody(fencedBlocks(md, '# n2b-agent-sync')[0]);
+  const run = (cwd, rtDir, script, args = []) => {
+    const r = python(script.split('.claude/').join(`${rtDir}/`), cwd, args);
+    assert.strictEqual(r.status, 0, r.stderr || r.stdout);
+    return r.stdout;
+  };
+  const roles = Object.keys(catalog.roles);
+  const dir = tmpDir();
+  installOk(['--opencode', '--codex', '--claude', '--target', dir]);
+  fs.mkdirSync(path.join(dir, '.n2b'));
+  const agentPath = (role) => path.join(dir, '.opencode/agents', `n2b-${role}.md`);
+  const modelOf = (role) => { const m = fs.readFileSync(agentPath(role), 'utf8').match(/^model: (.+)$/m); return m ? m[1] : null; };
+  const installedBytes = Object.fromEntries(roles.map((r) => [r, fs.readFileSync(agentPath(r), 'utf8')]));
+
+  // fresh install: no model anywhere
+  for (const r of roles) assert.strictEqual(modelOf(r), null, `${r}: installer must not write model:`);
+
+  // quality · anthropic → every file carries a provider/model ID; per-role tiers honoured
+  run(dir, '.opencode', materializer, ['model_profile=quality', 'model_provider=anthropic', 'design_system_source=none']);
+  let out = run(dir, '.opencode', sync);
+  assert.ok(out.trim().endsWith(`AGENT-SYNC: ${roles.length} of ${roles.length} agent files changed, 0 missing`), out);
+  for (const r of roles) {
+    const tier = catalog.roles[r].quality;
+    assert.strictEqual(modelOf(r), catalog.providers.anthropic[tier].model, `${r}: model from tier ${tier}`);
+    assert.ok(modelOf(r).startsWith('anthropic/'), `${r}: full provider/model ID`);
+    const fm = splitFrontmatter(fs.readFileSync(agentPath(r), 'utf8')).frontmatter;
+    assert.strictEqual((fm.match(/^model:/gm) || []).length, 1, `${r}: exactly one model: line`);
+    assert.strictEqual(frontmatterField(fm, 'mode'), 'subagent', `${r}: mode kept`);
+  }
+  assert.strictEqual(modelOf('synthesizer'), 'anthropic/claude-fable-5');
+  assert.strictEqual(modelOf('spec-quality-reviewer'), 'anthropic/claude-opus-4-8');
+  // idempotent
+  out = run(dir, '.opencode', sync);
+  assert.ok(out.includes(`AGENT-SYNC: 0 of ${roles.length} agent files changed`), out);
+
+  // budget · openai: light tier lands on luna; fallback walk covers null frontier
+  run(dir, '.opencode', materializer, ['model_profile=budget', 'model_provider=openai']);
+  run(dir, '.opencode', sync);
+  assert.strictEqual(modelOf('spec-quality-reviewer'), 'gpt-5.6-luna');
+  assert.strictEqual(modelOf('feature-spec-producer'), 'gpt-5.6-terra');
+  run(dir, '.opencode', materializer, ['model_profile=quality', 'model_provider=generic', 'heavy=openrouter/big', 'standard=openrouter/mid', 'light=openrouter/small']);
+  run(dir, '.opencode', sync);
+  assert.strictEqual(modelOf('synthesizer'), 'openrouter/big', 'frontier null → heavy');
+
+  // inherit strips every model: line and restores the installed bytes exactly
+  run(dir, '.opencode', materializer, ['model_profile=inherit']);
+  out = run(dir, '.opencode', sync);
+  assert.ok(out.includes(`AGENT-SYNC: ${roles.length} of ${roles.length} agent files changed`), out);
+  for (const r of roles) assert.strictEqual(fs.readFileSync(agentPath(r), 'utf8'), installedBytes[r], `${r}: inherit must restore the installed file byte-for-byte`);
+  assert.ok(!out.includes('model=inherit'), 'never prints/writes inherit as a model');
+
+  // legacy five-field config on OpenCode → session model (defaultProvider inherit), nothing written
+  fs.writeFileSync(path.join(dir, '.n2b/config.json'), JSON.stringify({ model_profile: 'balanced', spec_review: 'independent', design_system_source: 'none', created: '2026-09-01', n2b_version: '0.2.0' }));
+  out = run(dir, '.opencode', sync);
+  assert.ok(out.includes(`AGENT-SYNC: 0 of ${roles.length} agent files changed`), out);
+  for (const r of roles) assert.strictEqual(modelOf(r), null);
+
+  // missing agent file is reported, the rest still sync, exit 0
+  fs.unlinkSync(agentPath('visionary'));
+  run(dir, '.opencode', materializer, ['model_profile=balanced', 'model_provider=anthropic']);
+  out = run(dir, '.opencode', sync);
+  assert.ok(/AGENT-SYNC: visionary MISSING \.opencode\/agents\/n2b-visionary\.md/.test(out), out);
+  assert.ok(out.trim().endsWith(`AGENT-SYNC: ${roles.length - 1} of ${roles.length} agent files changed, 1 missing`), out);
+  assert.strictEqual(modelOf('researcher'), 'anthropic/claude-sonnet-5');
+
+  // other runtimes: one n/a line, nothing touched
+  for (const [rtDir, transport] of [['.codex', 'spawn-if-advertised'], ['.claude', 'spawn-alias']]) {
+    out = run(dir, rtDir, sync);
+    assert.strictEqual(out.trim(), `AGENT-SYNC: n/a — ${rtDir.slice(1)} routes via ${transport}, no agent files to update`);
+  }
 });
 
 main();
