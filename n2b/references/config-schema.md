@@ -5,17 +5,17 @@ This document is the single owner of the `.n2b/config.json` schema. Every field 
 ## File Locations
 
 - **Template:** `n2b/templates/config.json` — source template; `created` carries the `{DATE}` placeholder until instantiation.
-- **Runtime:** `.n2b/config.json` — written by the Stage 1 workflow at Step 6.5 (preference collection). It is ALWAYS written: if the user skips or cancels the preference questions, Stage 1 writes the defaults and moves on. Only workflows write this file — never agents.
+- **Runtime:** `.n2b/config.json` — written by the Stage 1 workflow at Step 6.5 (preference collection). It is ALWAYS written: if the user skips or cancels the preference questions, Stage 1 writes the defaults and moves on — and records the skip under `## Deviations` in `s1-init/STAGE.md` so a silent default is never mistaken for an answer. Only workflows write this file — never agents.
 
 ## Fields
 
 | Field | Type | Allowed values | Default | Writer | Readers |
 |---|---|---|---|---|---|
-| `model_profile` | string | `quality` \| `balanced` \| `budget` | `balanced` | Stage 1 Step 6.5 | Every workflow that spawns agents, via the resolution logic in `n2b/references/model-profiles.md` (config → mapping table → Agent tool `model` parameter). |
+| `model_profile` | string | `quality` \| `balanced` \| `budget` \| `inherit` | `balanced` on Claude Code · `inherit` on Codex, OpenCode, Cursor | Stage 1 Step 6.5 (asks the user on Claude Code; writes `inherit` without asking elsewhere — the runtime is read from the installer's `n2b-runtime` stamp) | Every workflow that spawns agents, via the resolution logic in `n2b/references/model-profiles.md` (config → mapping table → Agent tool `model` parameter). `inherit` means: pass no `model` parameter at all; the host's configured default model applies to every agent. |
 | `spec_review` | string | `independent` \| `self-only` | `independent` | Stage 1 Step 6.5 | Stage 3 workflow — toggles the independent spec review pass (Pass C): `independent` spawns the independent Spec Quality Reviewer (default); `self-only` relies on the spec producer's self-review alone. |
 | `design_system_source` | string | `none` \| `user` | `none` | Stage 1 Step 6.5 | Stage 3 passthrough step and Gate A Category 5 — `user` carries the files found in `.n2b/inputs/design-system/` verbatim into the package at `.n2b/specifications/design-system/` (see Design-System Intake below); `none` means the package ships design-agnostic (no design-system output exists). n2b never generates a design system. |
 | `created` | string | ISO date `YYYY-MM-DD` | today's date at instantiation | Stage 1 Step 6.5 | Informational/provenance — records when the pipeline was configured. |
-| `n2b_version` | string | semver | `0.1.0` | Stage 1 Step 6.5 (copied from the template) | Informational/provenance — records which engine version produced the blueprint package. |
+| `n2b_version` | string | semver | the template's value (currently `0.2.0`) | Stage 1 Step 6.5 (copied from the template — never typed from memory) | Informational/provenance — records which engine version produced the blueprint package. |
 
 ## Missing/Invalid Handling
 

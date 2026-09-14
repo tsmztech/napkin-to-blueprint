@@ -242,7 +242,7 @@ case "$DS_SOURCE" in none|user) ;; *) DS_SOURCE="none" ;; esac
 echo "DS_SOURCE=$DS_SOURCE"
 
 MODEL_PROFILE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('model_profile','balanced'))" 2>/dev/null || echo "balanced")
-case "$MODEL_PROFILE" in quality|balanced|budget) ;; *) MODEL_PROFILE="balanced" ;; esac
+case "$MODEL_PROFILE" in quality|balanced|budget|inherit) ;; *) MODEL_PROFILE="balanced" ;; esac
 echo "MODEL_PROFILE=$MODEL_PROFILE"
 ```
 
@@ -260,7 +260,7 @@ echo "RECORDED_BATCH=${RECORDED_BATCH:-none}"
 
 `BATCH_SIZE=all` means every remaining feature of the **current pass** is processed in this invocation — the pass boundary still checkpoints. The resolved value is recorded into STAGE.md frontmatter at Step 1.5 (Path A writes it; Path B updates it only when `BATCH_OVERRIDE` was supplied, adding a `## Deviations` note: `- **Invocation:** batch size overridden to {BATCH_SIZE} for resume {RESUME_N} (--batch)`).
 
-**Model resolution (once for this workflow):** using MODEL_PROFILE, resolve each Stage 3 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Requirements Architect**, **Feature Analyst**, **Feature Spec Producer**, **Spec Quality Reviewer**, **Cross-Reference Reconciler**) and pass the resolved model as the Agent tool's `model` parameter on every spawn below — the mapping table is the single source; never hardcode a model name in this workflow. The Feature Analyst model is passed through the Requirements Architect's spawn prompt (the Architect spawns the analysts).
+**Model resolution (once for this workflow):** if MODEL_PROFILE is `inherit`, pass **no** `model` parameter on any spawn in this workflow (including the Feature Analyst model forwarded through the Requirements Architect prompt) — the host's default model applies (model-profiles.md, `inherit` profile). Otherwise, using MODEL_PROFILE, resolve each Stage 3 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Requirements Architect**, **Feature Analyst**, **Feature Spec Producer**, **Spec Quality Reviewer**, **Cross-Reference Reconciler**) and pass the resolved model as the Agent tool's `model` parameter on every spawn below — the mapping table is the single source; never hardcode a model name in this workflow. The Feature Analyst model is passed through the Requirements Architect's spawn prompt (the Architect spawns the analysts).
 
 **Design-system passthrough pre-flight.** Inspect the design-system intake directory (`.n2b/inputs/design-system/`, per config-schema.md's Design-System Intake section):
 

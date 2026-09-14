@@ -294,6 +294,7 @@ This file is a live tracker while status is in-progress. Once status changes to 
 - [ ] User Q&A session
 - [ ] Show-back presented, user confirmed
 - [ ] BRIEF.md written
+- [ ] Pipeline settings collected
 - [ ] Gate 0 passed
 
 ## Gates
@@ -301,6 +302,7 @@ This file is a live tracker while status is in-progress. Once status changes to 
 ### Gate 0 — Brief Validation
 - Status: pending
 - [ ] BRIEF.md exists with valid frontmatter (5 required fields)
+- [ ] config.json written with the 5 registered fields; Step 6.5 ticked or its skip recorded in Deviations
 - [ ] All 10 required sections non-empty
 - [ ] project_name and domain present
 - [ ] Self-audit: roles confirmed or single-role stated
@@ -650,9 +652,11 @@ project_name: [generated name]
 domain: [problem space, not solution]
 created: [YYYY-MM-DD]
 status: draft
-n2b_version: 0.1.0
+n2b_version: 0.2.0
 ---
 ```
+
+`n2b_version` is the engine version — copy it from the `n2b_version` field of the `config.json` template (`n2b/templates/config.json`); never type it from memory.
 
 The frontmatter has exactly these 5 fields — no others. Hosting and deployment intent, when the user has any, is body content: it lands in Ecosystem & Integrations and/or Constraints, not in frontmatter.
 
@@ -692,13 +696,25 @@ The frontmatter has exactly these 5 fields — no others. Hosting and deployment
 
 11. **Step tracking after writing BRIEF.md:**
    - Tick `- [x] BRIEF.md written` in `.n2b/tracking/stages/s1-init/STAGE.md`
-   - Update `.n2b/tracking/STATE.md` frontmatter: `current_step: gate-0`, `last_updated: {ISO timestamp}`
-   - Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "BRIEF.md written", Next action "Gate 0 validation"
+   - Update `.n2b/tracking/STATE.md` frontmatter: `current_step: pipeline-settings`, `last_updated: {ISO timestamp}`
+   - Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "BRIEF.md written", Next action "Pipeline settings (Step 6.5)"
    - **Update PIPELINE.md `project_name`**: read `project_name` from `.n2b/BRIEF.md` frontmatter and write it to `.n2b/tracking/PIPELINE.md` `project_name` field, and set `last_updated: {ISO timestamp}`
+
+12. **Proceed to Step 6.5 — Pipeline Settings.** Do not run Gate 0 yet. Gate 0 (Step 6.7) starts only after Step 6.5 has written `.n2b/config.json` and ticked `- [x] Pipeline settings collected` in `.n2b/tracking/stages/s1-init/STAGE.md` (or recorded the skip under `## Deviations`).
 
 ---
 
 ## Step 6.5 — Pipeline Settings
+
+<!-- n2b-runtime: claude -->
+
+**Runtime detection.** The `n2b-runtime` marker directly above names the host this copy of n2b was installed for (the installer stamps it: `claude`, `codex`, `opencode`, or `cursor`). It decides how this step behaves:
+
+| Runtime marker | Behaviour |
+|---|---|
+| `claude` | Ask the Models question below and write the chosen profile. |
+| `codex`, `opencode` | Do **not** ask. Show the runtime notice below and write `model_profile: "inherit"`. |
+| `cursor` | Do **not** ask. Show the one-line notice below and write `model_profile: "inherit"`. |
 
 Display the PIPELINE SETTINGS banner:
 
@@ -711,6 +727,8 @@ Your brief is ready. Before n2b takes over,
 one quick preference for the pipeline.
 ```
 
+### On `claude` — ask
+
 **Question — Model profile.** Use AskUserQuestion:
 - header: "Models"
 - question: "Which AI models should n2b's agents use?"
@@ -720,29 +738,63 @@ one quick preference for the pipeline.
   - "Budget — fastest and cheapest"
 - Maps to model_profile: "balanced", "quality", or "budget"
 
-This is the only question. Two further fields are written without asking:
+This is the only question. It is asked **once, here, for the whole pipeline** — later stages read the answer from `.n2b/config.json` and never re-ask.
+
+### On `codex` / `opencode` — notice, no question
+
+Display instead of the question:
+
+```
+Model profile: inherit
+
+On this runtime every n2b agent runs on the host's configured
+default model. Per-agent model routing (quality / balanced /
+budget) is available on Claude Code today; support for this
+runtime is on the roadmap.
+```
+
+Resolved value: `model_profile: "inherit"`.
+
+### On `cursor` — one-liner, no question
+
+Display: `Model profile: inherit — agents run on Cursor's configured model.`
+
+Resolved value: `model_profile: "inherit"`.
+
+### Write the config (all runtimes)
+
+Two further fields are written without asking, on every runtime:
 - `spec_review`: always `"independent"` — Stage 3 runs the independent spec quality review by default.
 - `design_system_source`: `"user"` if design-system artifacts were ingested into `.n2b/inputs/design-system/` during the conversation, else `"none"` (Stage 3 carries supplied artifacts into the package verbatim; it never generates a design system).
 
 The pipeline runs manual-only: every stage ends paused and the user triggers the next stage command themselves. There is no auto-pilot mode and no `pipeline_mode` field.
 
-**Default:** model_profile="balanced" — applied if user skips the question.
-
 Write `.n2b/config.json` using the Write tool:
 
 ```json
 {
-  "model_profile": "[resolved value]",
+  "model_profile": "[resolved value — quality | balanced | budget on claude; inherit elsewhere]",
   "spec_review": "independent",
   "design_system_source": "[user or none — resolved as above]",
   "created": "[today's date YYYY-MM-DD]",
-  "n2b_version": "0.1.0"
+  "n2b_version": "[copied from the n2b_version field of the config.json template — currently 0.2.0]"
 }
 ```
 
 The runtime config contains exactly these five registered fields — no more, no fewer (see `config-schema.md`).
 
-**CRITICAL: config.json is ALWAYS written.** Never skip the write even if user cancels. Never fail Stage 1 over config. If anything goes wrong during preference collection, write defaults and move on.
+**Step tracking after writing config.json:**
+- Tick `- [x] Pipeline settings collected` in `.n2b/tracking/stages/s1-init/STAGE.md`
+- Update `.n2b/tracking/STATE.md` frontmatter: `current_step: gate-0`, `last_updated: {ISO timestamp}`
+- Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "Pipeline settings written (model_profile: {value})", Next action "Gate 0 validation"
+
+**Fallback — CRITICAL: config.json is ALWAYS written.** Never fail Stage 1 over config. If the user cancels the question, the AskUserQuestion tool is unavailable, or anything else goes wrong during preference collection, write the defaults (`model_profile: "balanced"` on `claude`, `"inherit"` elsewhere; `spec_review: "independent"`; `design_system_source` as resolved above) and move on — **but the skip must be visible**:
+- Do **not** tick `- [ ] Pipeline settings collected`.
+- Append to `.n2b/tracking/stages/s1-init/STAGE.md` `## Deviations`:
+  `- **Config:** pipeline settings written with defaults — user was not asked ({reason})`
+- Then perform the STATE.md updates above as normal.
+
+Silently writing defaults is a defect: Gate 0 checks for the ticked box or the Deviations line (Step 6.7, `GATE0-SETTINGS`).
 
 ---
 
@@ -767,6 +819,8 @@ test -f .n2b/BRIEF.md && echo "GATE0-FILE: PASS" || echo "GATE0-FILE: FAIL"
 ```bash
 # Extract frontmatter and check for all 5 fields
 sed -n '/^---$/,/^---$/p' .n2b/BRIEF.md | grep -c '^\(project_name\|domain\|created\|status\|n2b_version\):' | xargs -I{} sh -c 'if [ {} -eq 5 ]; then echo "GATE0-FRONTMATTER: PASS (5/5 fields)"; else echo "GATE0-FRONTMATTER: FAIL ({}/5 fields)"; fi'
+[ -f .n2b/config.json ] && python3 -c "import json,sys; c=json.load(open('.n2b/config.json')); sys.exit(0 if set(c)=={'model_profile','spec_review','design_system_source','created','n2b_version'} and c['model_profile'] in ('quality','balanced','budget','inherit') else 1)" && echo "GATE0-CONFIG: PASS (5 fields, model_profile valid)" || echo "GATE0-CONFIG: FAIL (config.json missing, wrong field set, or invalid model_profile)"
+{ grep -q '^- \[x\] Pipeline settings collected' .n2b/tracking/stages/s1-init/STAGE.md || grep -q '^- \*\*Config:\*\* pipeline settings written with defaults' .n2b/tracking/stages/s1-init/STAGE.md; } && echo "GATE0-SETTINGS: PASS (asked, or skip recorded in Deviations)" || echo "GATE0-SETTINGS: FAIL (Step 6.5 neither ticked 'Pipeline settings collected' nor recorded the skip)"
 ```
 
 **Check 3 — All 10 required sections are non-empty:**
@@ -962,7 +1016,8 @@ Do NOT create a git commit.
 <success_criteria>
 
 - `.n2b/BRIEF.md` exists with valid YAML frontmatter (exactly 5 fields: project_name, domain, created, status, n2b_version) and all 10 required sections
-- `.n2b/config.json` exists with exactly the five registered fields: model_profile, spec_review, design_system_source, created, n2b_version
+- `.n2b/config.json` exists with exactly the five registered fields: model_profile, spec_review, design_system_source, created, n2b_version — `model_profile` is the user's answer on Claude Code and `inherit` on every other runtime
+- Step 6.5 was reached from Step 6 (not skipped): `- [x] Pipeline settings collected` is ticked in s1-init/STAGE.md, or the skip is recorded under `## Deviations` — never a silent default
 - Vision section is specific enough that two people would picture roughly the same product
 - Experience section reads like a story, not a spec
 - Constraints contains only items the user volunteered, or "None identified (asked)" — and the constraints question was asked exactly once, openly, never as an interrogation
@@ -978,7 +1033,7 @@ Do NOT create a git commit.
 - No round cap — conversation ran until clarity or user chose to proceed
 - User had 4 choices at the fork: hand off, add more, correct, features
 - If an existing BRIEF.md was present, it was handled (archived or cancelled)
-- config.json was written regardless of user preference choices
+- config.json was written regardless of user preference choices — and on Claude Code the Models question was visibly asked
 - `.n2b/tracking/PIPELINE.md` exists with `active_stage: 0` and Stage 1 marked complete
 - `.n2b/tracking/STATE.md` exists with `stage_status: between-stages` and project name in accumulated context
 - `.n2b/tracking/stages/s1-init/STAGE.md` exists with `status: complete` and Gate 0 evidence including the substance self-audit

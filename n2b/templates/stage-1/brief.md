@@ -10,7 +10,7 @@ project_name: [Generated name — short, memorable working title]
 domain: [Problem space, not solution — e.g., "meal planning" not "recipe app"]
 created: [YYYY-MM-DD]
 status: draft
-n2b_version: 0.1.0
+n2b_version: 0.2.0
 ---
 
 # [Project Name]

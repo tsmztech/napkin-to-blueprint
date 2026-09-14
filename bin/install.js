@@ -318,9 +318,9 @@ function rewriteToolNames(content, rt) {
 }
 
 /**
- * Runtime stamp: `<!-- n2b-runtime: claude -->` in source (model-profiles.md)
- * is rewritten to the target runtime id so workflows know which host they run
- * on without guessing (gsd-core _stampNonClaudeRuntimeDefaults,
+ * Runtime stamp: `<!-- n2b-runtime: claude -->` in source (model-profiles.md,
+ * stage-1/init.md Step 6.5) is rewritten to the target runtime id so workflows
+ * know which host they run on without guessing (gsd-core _stampNonClaudeRuntimeDefaults,
  * bin/install.js:7972-7976).
  */
 const RUNTIME_STAMP = /<!-- n2b-runtime: [a-z-]+ -->/g;

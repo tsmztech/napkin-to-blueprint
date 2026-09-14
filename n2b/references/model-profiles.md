@@ -15,7 +15,9 @@ This document is the model profile reference for n2b's agent pipeline. Workflows
 
 **Model names are tier aliases, not pinned IDs** (decided 2026-07-25, decision 88): `fable` / `opus` / `sonnet` / `haiku` resolve to the harness's current model of that tier via the Agent tool's `model` parameter, so the mapping never goes stale as model versions advance. If a resolved tier is unavailable in the user's harness (e.g. `fable` on plans without Mythos-class access), fall back one tier (`fable` → `opus`) and proceed — never fail a spawn over model availability.
 
-**Runtime rule — non-Claude runtimes (Codex, OpenCode, Cursor):** the `n2b-runtime` marker at the top of this file names the runtime this copy was installed for (the installer stamps it). When it is anything other than `claude`, do not pass a `model` parameter when spawning. Ignore the per-agent mapping table; the host's configured default model applies to every agent. The profile governs nothing else on those runtimes.
+**Runtime rule — non-Claude runtimes (Codex, OpenCode, Cursor):** the `n2b-runtime` marker at the top of this file names the runtime this copy was installed for (the installer stamps it). When it is anything other than `claude`, do not pass a `model` parameter when spawning. Ignore the per-agent mapping table; the host's configured default model applies to every agent. The profile governs nothing else on those runtimes. Stage 1 Step 6.5 enforces the same rule at config-write time: on a non-Claude runtime it does not ask the Models question and writes `model_profile: "inherit"`.
+
+**`inherit` profile:** `inherit` is a registered value of `model_profile` (config-schema.md). It has no column in the mapping table below because it means "do not route": every spawn omits the `model` parameter and the host decides. Treat it identically on every runtime — `inherit` on Claude Code also means "omit `model`", it is not an alias for `balanced`.
 
 ---
 
@@ -57,4 +59,5 @@ Workflow reads .n2b/config.json → extracts model_profile
 
 - No runtime config access needed — the workflow has the table in its reference docs and resolves inline.
 - If `.n2b/config.json` is missing, use default: `model_profile = "balanced"`.
-- The `model_profile` field in config.json must match one of: `quality`, `balanced`, `budget`.
+- The `model_profile` field in config.json must match one of: `quality`, `balanced`, `budget`, `inherit`. Any other value falls back to `balanced`.
+- If it is `inherit`, skip the table lookup and pass **no** `model` parameter on any spawn in that workflow.
