@@ -406,11 +406,11 @@ After it completes, verify `{OUT_DIR}backlog.json` exists and is non-empty (`[ -
 
 ```bash
 MODEL_PROFILE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('model_profile','balanced'))" 2>/dev/null || echo "balanced")
-case "$MODEL_PROFILE" in quality|balanced|budget) ;; *) MODEL_PROFILE="balanced" ;; esac
+case "$MODEL_PROFILE" in quality|balanced|budget|inherit) ;; *) MODEL_PROFILE="balanced" ;; esac
 echo "MODEL_PROFILE=$MODEL_PROFILE"
 ```
 
-Then resolve each Stage 5 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Backlog Builder**, **Export Formatter**, **Export Fidelity Checker**) and pass the resolved model as the Agent tool's `model` parameter on every spawn — the mapping table is the single source; never hardcode a model name in this workflow.
+If MODEL_PROFILE is `inherit`, pass **no** `model` parameter on any spawn in this workflow — the host's default model applies (model-profiles.md, `inherit` profile). Otherwise resolve each Stage 5 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Backlog Builder**, **Export Formatter**, **Export Fidelity Checker**) and pass the resolved model as the Agent tool's `model` parameter on every spawn — the mapping table is the single source; never hardcode a model name in this workflow.
 
 Display the EXPORT banner and the run map:
 

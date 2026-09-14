@@ -298,11 +298,11 @@ mkdir -p .n2b/architecture
 
 ```bash
 MODEL_PROFILE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('model_profile','balanced'))" 2>/dev/null || echo "balanced")
-case "$MODEL_PROFILE" in quality|balanced|budget) ;; *) MODEL_PROFILE="balanced" ;; esac
+case "$MODEL_PROFILE" in quality|balanced|budget|inherit) ;; *) MODEL_PROFILE="balanced" ;; esac
 echo "MODEL_PROFILE=$MODEL_PROFILE"
 ```
 
-Then resolve each Stage 4 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Profile Analyst**, **Technical Researcher**, **Feasibility Planner**, **Technical Architect**, **Schema Designer**) and pass the resolved model as the Agent tool's `model` parameter on every spawn below — the mapping table is the single source; never hardcode a model name in this workflow.
+If MODEL_PROFILE is `inherit`, pass **no** `model` parameter on any spawn in this workflow — the host's default model applies (model-profiles.md, `inherit` profile). Otherwise resolve each Stage 4 agent role's model from the Per-Agent Model Mapping table in `model-profiles.md` (rows: **Profile Analyst**, **Technical Researcher**, **Feasibility Planner**, **Technical Architect**, **Schema Designer**) and pass the resolved model as the Agent tool's `model` parameter on every spawn below — the mapping table is the single source; never hardcode a model name in this workflow.
 
 Display the Pass A banner and the pipeline flow diagram:
 

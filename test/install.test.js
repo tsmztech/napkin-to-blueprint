@@ -235,6 +235,21 @@ test('stampRuntime rewrites the marker to the target id; source marker says clau
   assert.strictEqual(rewriteContent(src, claude), src);
 });
 
+test('stage-1/init.md carries exactly one runtime stamp, inside Step 6.5, and it is rewritten per runtime', () => {
+  const src = fs.readFileSync(path.join(REPO, 'n2b/workflows/stage-1/init.md'), 'utf8');
+  const stamps = src.match(/<!-- n2b-runtime: [a-z-]+ -->/g) || [];
+  assert.deepStrictEqual(stamps, ['<!-- n2b-runtime: claude -->']);
+  const step65 = src.indexOf('## Step 6.5');
+  assert.ok(step65 > 0 && src.indexOf(stamps[0]) > step65 && src.indexOf(stamps[0]) < src.indexOf('## Step 6.7'), 'stamp must sit in Step 6.5');
+  assert.strictEqual(rewriteContent(src, claude), src);
+  for (const rt of [codex, opencode, cursor]) {
+    const out = rewriteContent(src, rt);
+    assert.ok(out.includes(`<!-- n2b-runtime: ${rt.id} -->`));
+    assert.ok(!out.includes('n2b-runtime: claude'));
+    assert.ok(out.includes('model_profile: "inherit"'));
+  }
+});
+
 // ─── frontmatter helpers ─────────────────────────────────────────────────────
 
 test('splitFrontmatter / frontmatterField / frontmatterList', () => {
@@ -364,7 +379,12 @@ for (const id of ['codex', 'opencode', 'cursor']) {
       assert.ok(!/\bn2b:/.test(text), `${rel} still uses the n2b: namespace`);
       assert.ok(!/@\.\//.test(text), `${rel} still has an @./ include`);
       if (id !== 'codex') assert.ok(!/AskUserQuestion/.test(text), `${rel} still names AskUserQuestion`);
+      assert.ok(!/n2b-runtime: claude/.test(text), `${rel} still carries the claude runtime stamp`);
     }
+    // Stage 1 Step 6.5 branches on its own stamp (asks on claude, writes `inherit` elsewhere).
+    const init = fs.readFileSync(path.join(root, 'n2b/workflows/stage-1/init.md'), 'utf8');
+    assert.ok(init.includes(`<!-- n2b-runtime: ${id} -->`), 'init.md Step 6.5 must carry the target runtime stamp');
+    assert.ok(init.includes('model_profile: "inherit"'), 'init.md Step 6.5 must keep the inherit branch');
 
     const stems = fileList(path.join(REPO, 'commands', 'n2b')).map((f) => f.slice(0, -3));
     assert.strictEqual(stems.length, 6);
