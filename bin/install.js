@@ -227,8 +227,9 @@ function promptRuntime(callback) {
 }
 
 // ─── Content rewrite rules (non-Claude runtimes only) ────────────────────────
-// Pure functions taking (content, rt), applied R1 → R4 then the runtime
-// stamp. Claude Code is the source format and never passes through these.
+// Pure functions taking (content, rt), applied R1 → R4, then R6 where the
+// runtime has native agent files, then the runtime stamp. Claude Code is the
+// source format and never passes through these.
 //
 // R5 (brand neutralising, gsd-core neutralizeAgentReferences
 // bin/install.js:7195-7207) is deliberately NOT implemented: a grep of
@@ -338,13 +339,37 @@ function stampRuntime(content, rt) {
   return content.replace(RUNTIME_STAMP, `<!-- n2b-runtime: ${rt.id} -->`);
 }
 
-/** Apply every rewrite rule for a non-Claude runtime. Identity for Claude Code. */
-function rewriteContent(content, rt) {
+/**
+ * R6 — subagent types for runtimes with native agent files. Every spawn in
+ * the workflows (and the nested Feature Analyst spawn in the Requirements
+ * Architect contract) is written runtime-neutrally as "Read the agent
+ * contract at `.claude/n2b/agents/stage-N/<file>.md`". Where the runtime
+ * routes through native agent files, append the agent to call:
+ * `(subagent_type: "n2b-<role>")`. `roleByContract` maps
+ * `stage-N/<file>.md` → catalog role (built from model-catalog.json by
+ * buildInstallMap; several export formatters share one role). Runs after R1,
+ * so the path already carries the runtime dir. Not applied on Claude (source
+ * verbatim) nor on runtimes whose agentKind is null (plan §7, R6 note).
+ */
+function rewriteSubagentTypes(content, rt, roleByContract) {
+  if (!rt.agentKind || !roleByContract) return content;
+  return content.replace(/contract at `[^`\n]*\/agents\/(stage-\d+\/[a-z0-9-]+\.md)`/g, (match, contract) => {
+    const role = roleByContract[contract];
+    return role ? `${match} (subagent_type: "${COMMAND_PREFIX}-${role}")` : match;
+  });
+}
+
+/**
+ * Apply every rewrite rule for a non-Claude runtime. Identity for Claude Code.
+ * `ctx.roleByContract` (optional) enables R6; buildInstallMap supplies it.
+ */
+function rewriteContent(content, rt, ctx = {}) {
   if (rt.id === DEFAULT_RUNTIME) return content;
   let out = rewritePaths(content, rt);
   out = rewriteIncludes(out, rt);
   out = rewriteNamespace(out, rt);
   out = rewriteToolNames(out, rt);
+  out = rewriteSubagentTypes(out, rt, ctx.roleByContract);
   out = stampRuntime(out, rt);
   return out;
 }
@@ -614,11 +639,18 @@ function agentWriter(rt) {
   return writer;
 }
 
-/** Parse the model catalog out of the payload once; roles drive agent emission. */
+/** Parse the model catalog out of the payload once; roles drive agent emission and R6. */
 function catalogRoles(source) {
   const entry = source.payload.find((p) => p.rel === MODEL_CATALOG_REL);
   if (!entry) throw new Error(`${PAYLOAD_DIR}/${MODEL_CATALOG_REL} missing from source`);
   return JSON.parse(entry.content.toString('utf8')).roles;
+}
+
+/** `stage-N/<file>.md` → role, for R6. */
+function roleByContractMap(roles) {
+  const map = {};
+  for (const [role, row] of Object.entries(roles)) for (const rel of row.agents) map[rel] = role;
+  return map;
 }
 
 // ─── Destination layout ──────────────────────────────────────────────────────
@@ -699,23 +731,24 @@ function readSource(projectRoot) {
 function buildInstallMap(source, rt) {
   const map = new Map();
   const isClaude = rt.id === DEFAULT_RUNTIME;
+  const agents = agentWriter(rt);
+  const roles = agents ? catalogRoles(source) : null;
+  const ctx = agents ? { roleByContract: roleByContractMap(roles) } : {};
   for (const { stem, content } of source.commands) {
-    const rel = `commands/${COMMAND_PREFIX}/${stem}.md`;
     const out = isClaude
       ? content
-      : convertCommand(rewriteContent(content.toString('utf8'), rt), stem, rt);
+      : convertCommand(rewriteContent(content.toString('utf8'), rt, ctx), stem, rt);
     map.set(commandDestPath(stem, rt), out);
   }
   for (const { rel, content } of source.payload) {
     const out = isClaude
       ? content
-      : rewriteContent(content.toString('utf8'), rt);
+      : rewriteContent(content.toString('utf8'), rt, ctx);
     map.set(`${PAYLOAD_DIR}/${rel}`, out);
   }
-  const agents = agentWriter(rt);
   if (agents) {
-    for (const [role, row] of Object.entries(catalogRoles(source))) {
-      map.set(agents.destPath(role), rewriteContent(agents.build(role, row), rt));
+    for (const [role, row] of Object.entries(roles)) {
+      map.set(agents.destPath(role), rewriteContent(agents.build(role, row), rt, ctx));
     }
   }
   return map;
@@ -828,6 +861,7 @@ module.exports = {
   rewriteNamespace,
   rewriteToolNames,
   stampRuntime,
+  rewriteSubagentTypes,
   rewriteContent,
   INCLUDE_LIST_INTRO,
   splitFrontmatter,
@@ -847,6 +881,7 @@ module.exports = {
   agentWriter,
   buildOpencodeAgentFile,
   catalogRoles,
+  roleByContractMap,
   collectFiles,
   readSource,
   buildInstallMap,

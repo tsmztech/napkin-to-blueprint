@@ -27,7 +27,7 @@ const {
   RUNTIMES, RUNTIME_ORDER, parseArgs, buildRuntimePromptText, parseRuntimeInput,
   rewritePaths, rewriteIncludes, rewriteNamespace, rewriteToolNames, stampRuntime,
   rewriteContent, INCLUDE_LIST_INTRO, splitFrontmatter, frontmatterField, frontmatterList,
-  convertCommand, commandDestPath, readSource, buildInstallMap, agentWriter,
+  convertCommand, commandDestPath, readSource, buildInstallMap, agentWriter, rewriteSubagentTypes, roleByContractMap,
 } = installer;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -226,6 +226,27 @@ test('R4 rewriteToolNames per runtime', () => {
 });
 
 // ─── stamp ───────────────────────────────────────────────────────────────────
+
+test('R6 rewriteSubagentTypes: appends subagent_type only where agentKind is set and the contract maps to a role', () => {
+  const roles = roleByContractMap(catalog.roles);
+  const input = 'Prompt: "Read the agent contract at `.opencode/n2b/agents/stage-2/n2b-visionary.md` and execute…" · contract at `.opencode/n2b/agents/stage-5/export-jira-formatter.md` · contract at `{FMT_AGENT}` · contracts at `.opencode/n2b/agents/stage-4/{name}.md`';
+  const out = rewriteSubagentTypes(input, opencode, roles);
+  assert.ok(out.includes('contract at `.opencode/n2b/agents/stage-2/n2b-visionary.md` (subagent_type: "n2b-visionary") and execute'));
+  assert.ok(out.includes('contract at `.opencode/n2b/agents/stage-5/export-jira-formatter.md` (subagent_type: "n2b-export-formatter")'), 'shared export-formatter role');
+  assert.ok(out.includes('contract at `{FMT_AGENT}` ·') && out.includes('`.opencode/n2b/agents/stage-4/{name}.md`'), 'placeholders untouched');
+  assert.strictEqual(rewriteSubagentTypes(input, codex, roles), input, 'codex: agentKind null → identity');
+  assert.strictEqual(rewriteSubagentTypes(input, cursor, roles), input);
+  assert.strictEqual(rewriteSubagentTypes(input, opencode, undefined), input, 'no map → identity');
+  assert.strictEqual(rewriteSubagentTypes('contract at `.opencode/n2b/agents/stage-9/unknown.md`', opencode, roles), 'contract at `.opencode/n2b/agents/stage-9/unknown.md`', 'unknown contract untouched');
+  // end to end: every static contract mention in the installed OpenCode tree is annotated; Codex/Cursor carry none
+  const ocMap = buildInstallMap(readSource(REPO), opencode);
+  const mentions = [];
+  for (const [k, v] of ocMap) for (const m of v.toString().matchAll(/contract at `\.opencode\/n2b\/agents\/(stage-\d\/[a-z0-9-]+\.md)`( \(subagent_type: "n2b-[a-z-]+"\))?/g)) mentions.push({ file: k, contract: m[1], annotated: Boolean(m[2]) });
+  assert.ok(mentions.length >= 15, `expected the workflow spawns, got ${mentions.length}`);
+  for (const m of mentions) assert.ok(m.annotated, `${m.file}: ${m.contract} not annotated`);
+  assert.ok(mentions.some((m) => m.file === 'n2b/agents/stage-3/requirements-architect.md'), 'nested Feature Analyst spawn annotated too');
+  for (const rt of [codex, cursor]) for (const v of buildInstallMap(readSource(REPO), rt).values()) assert.ok(!/subagent_type: "n2b-/.test(v.toString()), `${rt.id} must not carry subagent_type`);
+});
 
 test('stampRuntime rewrites the marker to the target id; source marker says claude', () => {
   assert.strictEqual(stampRuntime('<!-- n2b-runtime: claude -->\n# x', opencode), '<!-- n2b-runtime: opencode -->\n# x');
