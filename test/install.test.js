@@ -27,7 +27,7 @@ const {
   RUNTIMES, RUNTIME_ORDER, parseArgs, buildRuntimePromptText, parseRuntimeInput,
   rewritePaths, rewriteIncludes, rewriteNamespace, rewriteToolNames, stampRuntime,
   rewriteContent, INCLUDE_LIST_INTRO, splitFrontmatter, frontmatterField, frontmatterList,
-  convertCommand, commandDestPath, readSource, buildInstallMap,
+  convertCommand, commandDestPath, readSource, buildInstallMap, agentWriter,
 } = installer;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -402,9 +402,49 @@ for (const id of ['codex', 'opencode', 'cursor']) {
     const payload = files.filter((f) => f.startsWith('n2b/')).map((f) => f.slice(4));
     assert.deepStrictEqual(payload, fileList(path.join(REPO, 'n2b')));
     assert.ok(fs.readFileSync(path.join(root, 'n2b/references/model-profiles.md'), 'utf8').startsWith(`<!-- n2b-runtime: ${id} -->\n`));
-    assert.strictEqual(files.length, 99);
+    const agents = files.filter((f) => f.startsWith('agents/'));
+    assert.strictEqual(agents.length, rt.agentKind ? Object.keys(catalog.roles).length : 0, `${id}: native agent files only where agentKind is set`);
+    assert.strictEqual(files.length, 99 + agents.length);
   });
 }
+
+// ─── Native agent files (OpenCode) ───────────────────────────────────────────
+
+test('agentKind: only opencode has one; agentWriter is null elsewhere; AGENT_WRITERS keyed on kind, not runtime id', () => {
+  for (const id of RUNTIME_ORDER) {
+    assert.ok('agentKind' in RUNTIMES[id], `${id} must declare agentKind`);
+    assert.strictEqual(RUNTIMES[id].agentKind, id === 'opencode' ? 'opencode-agents' : null);
+    assert.strictEqual(agentWriter(RUNTIMES[id]) !== null, id === 'opencode');
+  }
+  assert.throws(() => agentWriter({ agentKind: 'bogus' }), /Unknown agentKind/);
+  const src = fs.readFileSync(path.join(REPO, 'bin/install.js'), 'utf8');
+  assert.ok(!/rt\.id === 'opencode'|runtime === 'opencode'/.test(src), 'no runtime-id chains for agent files');
+});
+
+test('--opencode emits one agents/n2b-<role>.md per catalog role: subagent, described, no model:, contract paths real', () => {
+  const map = buildInstallMap(readSource(REPO), opencode);
+  const roles = Object.keys(catalog.roles);
+  const agentFiles = [...map.keys()].filter((k) => k.startsWith('agents/'));
+  assert.deepStrictEqual(agentFiles.sort(), roles.map((r) => `agents/n2b-${r}.md`).sort());
+  for (const role of roles) {
+    const text = map.get(`agents/n2b-${role}.md`).toString();
+    const { frontmatter, body } = splitFrontmatter(text);
+    assert.ok(frontmatter !== null, `${role}: frontmatter`);
+    assert.strictEqual(frontmatterField(frontmatter, 'mode'), 'subagent');
+    assert.ok(frontmatterField(frontmatter, 'description').includes(catalog.roles[role].label), `${role}: description names the role`);
+    assert.ok(!/^model:/m.test(frontmatter), `${role}: no model: line at install (OpenCode rejects aliases and inherit)`);
+    assert.ok(/^# model: /m.test(frontmatter), `${role}: keeps the sync hint comment`);
+    assert.ok(!/\.claude\/|\bn2b:|@\.\/|inherit/.test(text), `${role}: rewritten for opencode`);
+    for (const rel of catalog.roles[role].agents) {
+      assert.ok(body.includes(`\`.opencode/n2b/agents/${rel}\``), `${role}: body names contract ${rel}`);
+      assert.ok(map.has(`n2b/agents/${rel}`), `${role}: contract ${rel} is installed`);
+    }
+    assert.ok(body.includes('Read the agent contract at'), `${role}: body explains the spawn prompt`);
+  }
+  for (const rt of [claude, codex, cursor]) {
+    assert.ok([...buildInstallMap(readSource(REPO), rt).keys()].every((k) => !k.startsWith('agents/')), `${rt.id} must not get agent files`);
+  }
+});
 
 test('buildInstallMap is deterministic and keyed by destination path', () => {
   const source = readSource(REPO);
@@ -412,7 +452,7 @@ test('buildInstallMap is deterministic and keyed by destination path', () => {
     const a = buildInstallMap(source, rt);
     const b = buildInstallMap(source, rt);
     assert.deepStrictEqual([...a.keys()], [...b.keys()]);
-    assert.strictEqual(a.size, 99);
+    assert.strictEqual(a.size, 99 + (rt.agentKind ? Object.keys(catalog.roles).length : 0));
     for (const [k, v] of a) assert.strictEqual(Buffer.from(v).equals(Buffer.from(b.get(k))), true, k);
   }
 });
@@ -433,6 +473,7 @@ test('--all creates all four roots, re-run is idempotent, stale n2b files are pr
   fs.mkdirSync(path.join(dir, '.codex/skills/n2b-old'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.codex/skills/n2b-old/SKILL.md'), 'stale');
   fs.writeFileSync(path.join(dir, '.opencode/commands/n2b-old.md'), 'stale');
+  fs.writeFileSync(path.join(dir, '.opencode/agents/n2b-old-role.md'), 'stale');
   fs.mkdirSync(path.join(dir, '.cursor/skills/n2b-old'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.cursor/skills/n2b-old/SKILL.md'), 'stale');
   // user-owned files in the same surface dirs — must survive
@@ -440,17 +481,19 @@ test('--all creates all four roots, re-run is idempotent, stale n2b files are pr
   fs.mkdirSync(path.join(dir, '.codex/skills/mine'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.codex/skills/mine/SKILL.md'), 'mine');
   fs.writeFileSync(path.join(dir, '.opencode/commands/mine.md'), 'mine');
+  fs.writeFileSync(path.join(dir, '.opencode/agents/mine.md'), 'mine');
   fs.mkdirSync(path.join(dir, '.cursor/skills/mine'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.cursor/skills/mine/SKILL.md'), 'mine');
   fs.writeFileSync(path.join(dir, '.cursor/rules.md'), 'mine');
 
   const result = installOk(['--all', '--target', dir]);
   assert.ok(result.stdout.includes('removed 1 stale'), result.stdout);
+  assert.ok(result.stdout.includes('removed 2 stale'), 'opencode prunes the stale command and the stale agent file');
 
-  for (const stale of ['.claude/n2b/references/old.md', '.claude/commands/n2b/gone', '.codex/skills/n2b-old', '.opencode/commands/n2b-old.md', '.cursor/skills/n2b-old']) {
+  for (const stale of ['.claude/n2b/references/old.md', '.claude/commands/n2b/gone', '.codex/skills/n2b-old', '.opencode/commands/n2b-old.md', '.opencode/agents/n2b-old-role.md', '.cursor/skills/n2b-old']) {
     assert.ok(!fs.existsSync(path.join(dir, stale)), `${stale} should have been pruned`);
   }
-  for (const mine of ['.claude/commands/mine.md', '.codex/skills/mine/SKILL.md', '.opencode/commands/mine.md', '.cursor/skills/mine/SKILL.md', '.cursor/rules.md']) {
+  for (const mine of ['.claude/commands/mine.md', '.codex/skills/mine/SKILL.md', '.opencode/commands/mine.md', '.opencode/agents/mine.md', '.cursor/skills/mine/SKILL.md', '.cursor/rules.md']) {
     assert.strictEqual(fs.readFileSync(path.join(dir, mine), 'utf8'), 'mine', `${mine} must be kept`);
   }
   for (const id of RUNTIME_ORDER) {
