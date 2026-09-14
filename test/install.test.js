@@ -695,14 +695,25 @@ test('resolver, materializer and agent-sync blocks: owned by model-profiles.md, 
   }
 });
 
-test('Codex adapter: model routing is capability-gated, aliases banned, one-shot re-spawn', () => {
+test('Codex adapter: model routing is capability-gated, aliases banned, one-shot re-spawn, ChatGPT caveat in the notice', () => {
   const out = realCommand('s2-define', codex);
   assert.ok(out.includes('inspect the visible `spawn_agent` schema first'));
   assert.ok(out.includes('Pass `model` only when the schema advertises a `model` field'));
+  assert.ok(out.includes('pass `reasoning_effort` only when that field is advertised too'), 'effort is gated independently of model');
   assert.ok(out.includes('re-spawn once with no `model`'));
+  assert.ok(out.includes('`## Deviations`'), 'the fallback is recorded');
   assert.ok(!out.includes('Do NOT pass a `model` parameter'), 'Codex no longer bans model unconditionally');
+  // aliases may be *named* in the ban sentence but never appear as a value to send
+  assert.ok(/Never pass a Claude alias/.test(out));
+  assert.ok(!/model\s*[=:]\s*["'`]?(opus|sonnet|haiku|fable|inherit)\b/.test(out), 'no alias or inherit as a model value on Codex');
   const cursorOut = realCommand('s2-define', cursor);
   assert.ok(cursorOut.includes('Do NOT pass a `model` parameter'), 'Cursor still never passes a model');
+  // Stage 1 notice on Codex carries the ChatGPT-account caveat and recommends Inherit
+  const init = buildInstallMap(readSource(REPO), codex).get('n2b/workflows/stage-1/init.md').toString();
+  assert.ok(/ChatGPT-account Codex, pinned models can be\s+rejected; choose Inherit if unsure/.test(init), 'ChatGPT caveat present');
+  assert.ok(init.includes('"Inherit — use my session model for every agent (Recommended if unsure)"'), 'Inherit offered first');
+  // and the catalog only offers non-Claude providers on Codex
+  for (const p of catalog.runtimes.codex.knownProviders) assert.notStrictEqual(p, 'claude-aliases');
 });
 
 test('resolver + materializer end-to-end (python3): Claude spawns unchanged, inherit omits, legacy configs, Codex omits aliases', function () {
