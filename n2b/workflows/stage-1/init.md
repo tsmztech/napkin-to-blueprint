@@ -666,7 +666,7 @@ project_name: [generated name]
 domain: [problem space, not solution]
 created: [YYYY-MM-DD]
 status: draft
-n2b_version: 0.3.0
+n2b_version: 0.4.0
 ---
 ```
 
