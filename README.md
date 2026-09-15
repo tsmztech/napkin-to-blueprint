@@ -115,7 +115,10 @@ n2b sits *upstream* of the popular spec-driven tools — it works with them, not
 /n2b:s3-specify              # first run
 /n2b:s3-specify --continue   # keep going after each checkpoint (repeat until done)
 /n2b:s3-specify --batch 8    # optional: bigger batches
+/n2b:s3-specify --batch all  # optional: a whole pass per run, if your quota allows
 ```
+
+At the default batch size expect roughly three runs per four features plus one final run (two per four when `spec_review` is `self-only`); each checkpoint tells you exactly where you are and how many runs remain.
 
 The final run reconciles every cross-reference and ID, then holds the output to a hard quality gate.
 
