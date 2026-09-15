@@ -69,10 +69,10 @@ The `n2b-runtime` marker at the top of this file names the runtime this copy was
 |---|---|---|
 | `claude` | `spawn-alias` | Pass `model` as the Agent tool's `model` parameter. Never pass `reasoning_effort`. `(omit)` → leave `model` out. |
 | `codex` | `spawn-if-advertised` | **Inspect the visible `spawn_agent` schema first.** Pass `model` only when the schema advertises a `model` field **and** the resolver printed a concrete ID (not `(omit)`); pass `reasoning_effort` only when *that* field is advertised too — decide the two independently. Never pass a Claude alias or any `claude-*` value (the `openai` and `generic` providers are the only ones the catalog offers on Codex). If a spawn is rejected because of the model, **re-spawn once without `model` and `reasoning_effort`** and append `- **Model:** {role} spawned without model — host rejected {id}` to the active STAGE.md `## Deviations`. |
-| `opencode` | `agent-frontmatter` | OpenCode's `task` tool has no model parameter: routing happens through `model:` frontmatter on native agent files, which n2b does not ship yet. Until it does, spawn without a model — the materialized `model_tiers` are recorded, shown by `/n2b:status`, and will apply automatically once native agents land. |
+| `opencode` | `agent-frontmatter` | OpenCode's `task` tool has no model parameter: routing happens through the `model:` frontmatter of the native agent files the installer emits at `.claude/agents/n2b-<role>.md` (one per catalog role). **Spawn with `task(subagent_type: "n2b-<role>")`**, where `<role>` is the role named on the workflow's `- Model:` line for that spawn (the installer also annotates each contract mention with the same `subagent_type`; the export formatters share `n2b-export-formatter`). Never pass `model` to `task`. The resolver output is informational here — the model that actually applies is the `model:` line Stage 1 Step 6.5 / `/n2b:config` wrote with the `n2b-agent-sync` block (below). Re-running the installer rewrites the agent files without `model:`; run `/n2b:config` again afterwards. |
 | `cursor` | `none` | Never pass a model. Cursor's configured model applies to every agent. |
 
-Two rules hold on every runtime: **`(omit)` means omit** — never pass the literal strings `inherit`, `(omit)`, or an empty value; and **never fail a spawn over model availability** — fall back a tier (Claude) or re-spawn without `model` (Codex), and keep going.
+Two rules hold on every runtime: **`(omit)` means omit** — never pass the literal strings `inherit`, `(omit)`, or an empty value; and **never fail a spawn over model availability** — fall back a tier (Claude), re-spawn without `model` (Codex), or strip the `model:` line and re-run (OpenCode), and keep going.
 
 ---
 
@@ -170,3 +170,48 @@ What it guarantees:
 - Exactly the seven registered fields, in schema order; `n2b_version` copied from the template, never typed; `created` preserved on rewrite.
 - `model_provider` is forced to `inherit` when the profile is `inherit`, and `model_tiers` is all-`null` under `inherit`.
 - Known providers are materialized from the catalog; `generic` keeps previously typed IDs and applies `<tier>=<id>` arguments (an empty value clears a tier to `null`); `inherit` is never written into a tier.
+
+---
+
+## Syncing Native Agent Files (OpenCode)
+
+On runtimes whose transport is `agent-frontmatter`, the model a subagent runs on is the `model:` line of its native agent file (`.claude/agents/n2b-<role>.md`, emitted by the installer with no `model:`). Right after every materializer run, Stage 1 Step 6.5 and `/n2b:config` run this block. It resolves each role exactly as the resolver does (profile → tier → `model_tiers`, walking `fallback`), then **writes `model: <id>`** into the file or **strips the line** when the role resolves to `(omit)` — it never writes `inherit`, which OpenCode rejects. Idempotent; prints one `AGENT-SYNC:` line per role and a summary. On every other runtime it prints one `n/a` line and changes nothing, so callers run it unconditionally.
+
+```bash
+# n2b-agent-sync — write or strip the `model:` line of each native agent file from .n2b/config.json model_tiers (model-profiles.md, Syncing Native Agent Files). No-op unless the runtime's transport is agent-frontmatter. Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - <<'PYEOF'
+import json, re, os
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+transport = cat['runtimes'][runtime]['transport']
+if transport != 'agent-frontmatter': print(f"AGENT-SYNC: n/a — {runtime} routes via {transport}, no agent files to update"); raise SystemExit
+cfg = {}
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: pass
+profile = cfg.get('model_profile') if cfg.get('model_profile') in cat['profiles'] else 'inherit'
+tiers = cfg.get('model_tiers') if isinstance(cfg.get('model_tiers'), dict) else {}
+if profile == 'inherit' or cfg.get('model_provider') == 'inherit': tiers = {}
+updated = missing = 0
+for role, row in cat['roles'].items():
+    tier = None if profile == 'inherit' else row[profile]
+    while tier and not (tiers.get(tier) or {}).get('model'):
+        tier = cat['fallback'].get(tier)
+    model = (tiers.get(tier) or {}).get('model') if tier else None
+    path = f'.claude/agents/n2b-{role}.md'
+    if not os.path.exists(path): missing += 1; print(f"AGENT-SYNC: {role} MISSING {path} — re-run the n2b installer"); continue
+    text = open(path).read()
+    m = re.match(r'^---\n(.*?)\n---\n', text, re.S)
+    if not m: missing += 1; print(f"AGENT-SYNC: {role} SKIPPED {path} — no frontmatter"); continue
+    lines = [l for l in m.group(1).split('\n') if not l.startswith('model:')]
+    if model:
+        at = next((i for i, l in enumerate(lines) if l.startswith('mode:')), len(lines) - 1) + 1
+        lines.insert(at, f'model: {model}')
+    new = '---\n' + '\n'.join(lines) + '\n---\n' + text[m.end():]
+    if new != text: open(path, 'w').write(new); updated += 1
+    print(f"AGENT-SYNC: {role} model={model or '(none — session model)'}")
+print(f"AGENT-SYNC: {updated} of {len(cat['roles'])} agent files changed, {missing} missing")
+PYEOF
+```
+
+A `MISSING` line means the installer has not been run since the catalog gained that role — re-run `npx napkin-to-blueprint@latest --opencode` and then `/n2b:config` (bare, or with `--show` to confirm). Nothing else in the agent file is touched: the stub body, `description`, and `mode: subagent` come from the installer.

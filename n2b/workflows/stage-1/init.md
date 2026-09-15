@@ -757,10 +757,12 @@ and the host must accept a model per agent:
              `model` — otherwise agents run on your session model.
              On a ChatGPT-account Codex, pinned models can be
              rejected; choose Inherit if unsure.]
-  [opencode: applied through native agent files, which n2b does
-             not ship yet — your choice is recorded and takes
-             effect automatically once they land. Until then
-             agents run on your configured model.]
+  [opencode: written as `model:` into the native agent files
+             n2b installed at .claude/agents/n2b-*.md — each
+             agent then runs on that model. Provider IDs must be
+             ones your OpenCode config can reach (e.g.
+             anthropic/…, openai/…, or a custom ID); Inherit
+             leaves every agent on your configured model.]
 Inherit skips routing entirely: every agent uses the session
 model. You can change any of this later with /n2b:config.
 ```
@@ -846,12 +848,53 @@ The script prints the written file. It materializes `model_tiers` from the catal
 
 Confirm to the user in one line, e.g. `Pipeline settings written — models: balanced · claude-aliases` or `Pipeline settings written — models: inherit (session model)`.
 
+### Sync native agent files (all runtimes — a no-op except on OpenCode)
+
+Immediately after the materializer, run the **`n2b-agent-sync`** block from `model-profiles.md` (section "Syncing Native Agent Files") verbatim. On `opencode` it writes or strips the `model:` line of every `.claude/agents/n2b-<role>.md` from the config just written; elsewhere it prints one `AGENT-SYNC: n/a` line. Surface its summary line to the user on OpenCode (e.g. `Agent files synced — 16 of 16 updated`). A `MISSING` line is not a Stage 1 failure: note it under `## Deviations` as `- **Agents:** {n} native agent files missing — re-run the installer, then /n2b:config` and continue.
+
+```bash
+# n2b-agent-sync — write or strip the `model:` line of each native agent file from .n2b/config.json model_tiers (model-profiles.md, Syncing Native Agent Files). No-op unless the runtime's transport is agent-frontmatter. Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
+python3 - <<'PYEOF'
+import json, re, os
+cat = json.load(open('.claude/n2b/references/model-catalog.json'))
+stamp = re.search(r'n2b-runtime: ([a-z-]+)', open('.claude/n2b/references/model-profiles.md').read())
+runtime = stamp.group(1) if stamp else 'claude'
+transport = cat['runtimes'][runtime]['transport']
+if transport != 'agent-frontmatter': print(f"AGENT-SYNC: n/a — {runtime} routes via {transport}, no agent files to update"); raise SystemExit
+cfg = {}
+try: cfg = json.load(open('.n2b/config.json'))
+except Exception: pass
+profile = cfg.get('model_profile') if cfg.get('model_profile') in cat['profiles'] else 'inherit'
+tiers = cfg.get('model_tiers') if isinstance(cfg.get('model_tiers'), dict) else {}
+if profile == 'inherit' or cfg.get('model_provider') == 'inherit': tiers = {}
+updated = missing = 0
+for role, row in cat['roles'].items():
+    tier = None if profile == 'inherit' else row[profile]
+    while tier and not (tiers.get(tier) or {}).get('model'):
+        tier = cat['fallback'].get(tier)
+    model = (tiers.get(tier) or {}).get('model') if tier else None
+    path = f'.claude/agents/n2b-{role}.md'
+    if not os.path.exists(path): missing += 1; print(f"AGENT-SYNC: {role} MISSING {path} — re-run the n2b installer"); continue
+    text = open(path).read()
+    m = re.match(r'^---\n(.*?)\n---\n', text, re.S)
+    if not m: missing += 1; print(f"AGENT-SYNC: {role} SKIPPED {path} — no frontmatter"); continue
+    lines = [l for l in m.group(1).split('\n') if not l.startswith('model:')]
+    if model:
+        at = next((i for i, l in enumerate(lines) if l.startswith('mode:')), len(lines) - 1) + 1
+        lines.insert(at, f'model: {model}')
+    new = '---\n' + '\n'.join(lines) + '\n---\n' + text[m.end():]
+    if new != text: open(path, 'w').write(new); updated += 1
+    print(f"AGENT-SYNC: {role} model={model or '(none — session model)'}")
+print(f"AGENT-SYNC: {updated} of {len(cat['roles'])} agent files changed, {missing} missing")
+PYEOF
+```
+
 **Step tracking after writing config.json:**
 - Tick `- [x] Pipeline settings collected` in `.n2b/tracking/stages/s1-init/STAGE.md`
 - Update `.n2b/tracking/STATE.md` frontmatter: `current_step: gate-0`, `last_updated: {ISO timestamp}`
 - Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "Pipeline settings written (model_profile: {value}, model_provider: {value})", Next action "Gate 0 validation"
 
-**Fallback — CRITICAL: config.json is ALWAYS written.** Never fail Stage 1 over config. If the user cancels a question, the AskUserQuestion tool is unavailable, a Custom ID stays empty after one re-ask, or anything else goes wrong during preference collection, run the materializer with the defaults (`model_profile=balanced model_provider=claude-aliases` on `claude`; `model_profile=inherit` elsewhere; plus `design_system_source` as resolved above) and move on — **but the skip must be visible**:
+**Fallback — CRITICAL: config.json is ALWAYS written.** Never fail Stage 1 over config. If the user cancels a question, the AskUserQuestion tool is unavailable, a Custom ID stays empty after one re-ask, or anything else goes wrong during preference collection, run the materializer with the defaults (`model_profile=balanced model_provider=claude-aliases` on `claude`; `model_profile=inherit` elsewhere; plus `design_system_source` as resolved above), then the agent-sync block, and move on — **but the skip must be visible**:
 - Do **not** tick `- [ ] Pipeline settings collected`.
 - Append to `.n2b/tracking/stages/s1-init/STAGE.md` `## Deviations`:
   `- **Config:** pipeline settings written with defaults — user was not asked ({reason})`
@@ -1097,6 +1140,7 @@ Do NOT create a git commit.
 - User had 4 choices at the fork: hand off, add more, correct, features
 - If an existing BRIEF.md was present, it was handled (archived or cancelled)
 - config.json was written regardless of user preference choices — and on Claude Code, Codex, and OpenCode the Models question was visibly asked (Codex/OpenCode after the runtime notice, with Inherit offered first)
+- The `n2b-agent-sync` block ran after the materializer; on OpenCode every `.claude/agents/n2b-<role>.md` carries the `model:` its role resolved to (or none under `inherit`)
 - `.n2b/tracking/PIPELINE.md` exists with `active_stage: 0` and Stage 1 marked complete
 - `.n2b/tracking/STATE.md` exists with `stage_status: between-stages` and project name in accumulated context
 - `.n2b/tracking/stages/s1-init/STAGE.md` exists with `status: complete` and Gate 0 evidence including the substance self-audit

@@ -40,6 +40,7 @@ const RUNTIMES = {
     commandWriter: 'claude-command',
     namespaceStyle: 'colon',      // /n2b:<stem>
     toolNames: {},
+    agentKind: null,              // subagents are spawned from the payload contracts directly
     invoke: '/n2b:s1-init',
     nextStep: 'Open the folder in Claude Code and run /n2b:s1-init',
   },
@@ -54,6 +55,7 @@ const RUNTIMES = {
     commandWriter: 'codex-skill',
     namespaceStyle: 'shell-var',  // $n2b-<stem>
     toolNames: {},             // AskUserQuestion kept; mapped in the skill adapter header
+    agentKind: null,
     invoke: '$n2b-s1-init',
     nextStep: 'Open the folder in Codex and run $n2b-s1-init',
   },
@@ -68,6 +70,11 @@ const RUNTIMES = {
     commandWriter: 'opencode-command',
     namespaceStyle: 'hyphen',     // /n2b-<stem>
     toolNames: { AskUserQuestion: 'question' },   // gsd-core bin/install.js:7212
+    // agents/n2b-<role>.md — native subagent files, one per model-catalog role
+    // (gsd-core capabilities/opencode/capability.json: local kind "agents",
+    //  destSubpath "agents"). OpenCode's `task` tool has no model parameter, so
+    //  model routing lives in each file's `model:` frontmatter (plan §4.4).
+    agentKind: 'opencode-agents',
     invoke: '/n2b-s1-init',
     nextStep: 'Open the folder in OpenCode and run /n2b-s1-init',
   },
@@ -82,6 +89,7 @@ const RUNTIMES = {
     commandWriter: 'cursor-skill',
     namespaceStyle: 'hyphen',     // /n2b-<stem> from the "/" menu, or a mention
     toolNames: { AskUserQuestion: 'conversational prompting' },   // gsd-core bin/install.js:2572
+    agentKind: null,
     invoke: '/n2b-s1-init',
     nextStep: 'Open the folder in Cursor and run /n2b-s1-init (or mention n2b-s1-init)',
   },
@@ -108,7 +116,7 @@ terminal is attached).
 
   --claude        Claude Code  → <dir>/.claude/
   --codex         Codex        → <dir>/.codex/   (experimental)
-  --opencode      OpenCode     → <dir>/.opencode/
+  --opencode      OpenCode     → <dir>/.opencode/  (commands + agents/n2b-*.md)
   --cursor        Cursor       → <dir>/.cursor/
   --all           all four runtimes
   --target <dir>  project directory (defaults to the current directory)
@@ -219,8 +227,9 @@ function promptRuntime(callback) {
 }
 
 // ─── Content rewrite rules (non-Claude runtimes only) ────────────────────────
-// Pure functions taking (content, rt), applied R1 → R4 then the runtime
-// stamp. Claude Code is the source format and never passes through these.
+// Pure functions taking (content, rt), applied R1 → R4, then R6 where the
+// runtime has native agent files, then the runtime stamp. Claude Code is the
+// source format and never passes through these.
 //
 // R5 (brand neutralising, gsd-core neutralizeAgentReferences
 // bin/install.js:7195-7207) is deliberately NOT implemented: a grep of
@@ -330,13 +339,37 @@ function stampRuntime(content, rt) {
   return content.replace(RUNTIME_STAMP, `<!-- n2b-runtime: ${rt.id} -->`);
 }
 
-/** Apply every rewrite rule for a non-Claude runtime. Identity for Claude Code. */
-function rewriteContent(content, rt) {
+/**
+ * R6 — subagent types for runtimes with native agent files. Every spawn in
+ * the workflows (and the nested Feature Analyst spawn in the Requirements
+ * Architect contract) is written runtime-neutrally as "Read the agent
+ * contract at `.claude/n2b/agents/stage-N/<file>.md`". Where the runtime
+ * routes through native agent files, append the agent to call:
+ * `(subagent_type: "n2b-<role>")`. `roleByContract` maps
+ * `stage-N/<file>.md` → catalog role (built from model-catalog.json by
+ * buildInstallMap; several export formatters share one role). Runs after R1,
+ * so the path already carries the runtime dir. Not applied on Claude (source
+ * verbatim) nor on runtimes whose agentKind is null (plan §7, R6 note).
+ */
+function rewriteSubagentTypes(content, rt, roleByContract) {
+  if (!rt.agentKind || !roleByContract) return content;
+  return content.replace(/contract at `[^`\n]*\/agents\/(stage-\d+\/[a-z0-9-]+\.md)`/g, (match, contract) => {
+    const role = roleByContract[contract];
+    return role ? `${match} (subagent_type: "${COMMAND_PREFIX}-${role}")` : match;
+  });
+}
+
+/**
+ * Apply every rewrite rule for a non-Claude runtime. Identity for Claude Code.
+ * `ctx.roleByContract` (optional) enables R6; buildInstallMap supplies it.
+ */
+function rewriteContent(content, rt, ctx = {}) {
   if (rt.id === DEFAULT_RUNTIME) return content;
   let out = rewritePaths(content, rt);
   out = rewriteIncludes(out, rt);
   out = rewriteNamespace(out, rt);
   out = rewriteToolNames(out, rt);
+  out = rewriteSubagentTypes(out, rt, ctx.roleByContract);
   out = stampRuntime(out, rt);
   return out;
 }
@@ -553,6 +586,73 @@ function convertCommand(content, stem, rt) {
   return writer(content, stem, rt);
 }
 
+// ─── Native agent writers ────────────────────────────────────────────────────
+// Some hosts route models through per-agent files rather than a spawn
+// parameter. For those, the installer emits one stub agent per model-catalog
+// role; the stub reads the payload contract and executes it, so agent behaviour
+// still has exactly one source (the `.md` contract). The stub carries NO
+// `model:` line at install time — OpenCode rejects Claude aliases and `inherit`
+// (gsd-core #1156) — Stage 1 Step 6.5 and /n2b:config write or strip it from
+// `.n2b/config.json` `model_tiers` (the `n2b-agent-sync` block in
+// model-profiles.md). Keyed on `rt.agentKind`, never on the runtime id.
+
+const MODEL_CATALOG_REL = 'references/model-catalog.json';   // inside the payload
+
+/**
+ * OpenCode native agent (gsd-core convertClaudeToOpencodeFrontmatter isAgent
+ * branch, bin/install.js:7340-7350, and opencode.ai/docs/agents: filename is
+ * the agent id, `description` required, `mode: subagent`, `model: provider/id`).
+ * Authored in Claude source form and passed through rewriteContent like every
+ * other file, so paths and command names come out in the runtime's shape.
+ */
+function buildOpencodeAgentFile(role, row) {
+  const contracts = row.agents.map((rel) => `\`.claude/${PAYLOAD_DIR}/agents/${rel}\``);
+  const description = `n2b ${row.label} (Stage ${row.stage}) — runs the n2b agent contract named in its prompt. Spawned by the n2b stage workflows; not meant for direct use.`;
+  return [
+    '---',
+    `description: ${yamlQuote(description)}`,
+    'mode: subagent',
+    `# model: is written here by n2b from .n2b/config.json model_tiers (Stage 1 Step 6.5, /n2b:config) — do not edit by hand; re-run /n2b:config after reinstalling n2b`,
+    '---',
+    '',
+    `You are n2b's **${row.label}** (Stage ${row.stage}). The prompt that spawned you begins with "Read the agent contract at \`<path>\`": read that file in full and execute it exactly as written, with the inputs, output paths, and scope the prompt gives you. Your contract is ${contracts.length === 1 ? contracts[0] : `one of:\n${contracts.map((c) => `- ${c}`).join('\n')}`}${contracts.length === 1 ? '.' : ''}`,
+    '',
+    'Do not ask for clarification — work autonomously. Write only to the paths your prompt and contract name, and never to tracking files unless the contract says so.',
+    '',
+  ].join('\n');
+}
+
+const AGENT_WRITERS = {
+  'opencode-agents': {
+    destPath: (role) => `agents/${COMMAND_PREFIX}-${role}.md`,
+    ownedPattern: new RegExp(`^agents/${COMMAND_PREFIX}-[^/]+\\.md$`),
+    surfaceLabel: `agents/${COMMAND_PREFIX}-*.md`,
+    build: buildOpencodeAgentFile,
+  },
+};
+
+/** The agent writer for a runtime, or null when it spawns from contracts directly. */
+function agentWriter(rt) {
+  if (!rt.agentKind) return null;
+  const writer = AGENT_WRITERS[rt.agentKind];
+  if (!writer) throw new Error(`Unknown agentKind: ${rt.agentKind}`);
+  return writer;
+}
+
+/** Parse the model catalog out of the payload once; roles drive agent emission and R6. */
+function catalogRoles(source) {
+  const entry = source.payload.find((p) => p.rel === MODEL_CATALOG_REL);
+  if (!entry) throw new Error(`${PAYLOAD_DIR}/${MODEL_CATALOG_REL} missing from source`);
+  return JSON.parse(entry.content.toString('utf8')).roles;
+}
+
+/** `stage-N/<file>.md` → role, for R6. */
+function roleByContractMap(roles) {
+  const map = {};
+  for (const [role, row] of Object.entries(roles)) for (const rel of row.agents) map[rel] = role;
+  return map;
+}
+
 // ─── Destination layout ──────────────────────────────────────────────────────
 
 /** Path (relative to the runtime root) of the command artifact for <stem>. */
@@ -577,11 +677,14 @@ function commandSurfaceLabel(rt) {
 
 /**
  * Is <rel> (relative to the runtime root) a path n2b owns and may prune?
- * Only the n2b payload tree and n2b's own command artifacts — never a user's
- * other skills/commands living in the same surface directory.
+ * Only the n2b payload tree, n2b's own command artifacts and, where the
+ * runtime has native agent files, `agents/n2b-*.md` — never a user's other
+ * skills/commands/agents living in the same surface directory.
  */
 function isOwnedPath(rel, rt) {
   if (rel === PAYLOAD_DIR || rel.startsWith(`${PAYLOAD_DIR}/`)) return true;
+  const agents = agentWriter(rt);
+  if (agents && agents.ownedPattern.test(rel)) return true;
   switch (rt.commandKind) {
     case 'claude-commands': return rel.startsWith(`commands/${COMMAND_PREFIX}/`);
     case 'skills':          return new RegExp(`^skills/${COMMAND_PREFIX}-[^/]+/`).test(rel);
@@ -622,22 +725,31 @@ function readSource(projectRoot) {
  * Build the full { destRel → bytes } map for one runtime. Pure given the
  * source; exported for tests. For Claude Code the bytes are the source bytes
  * untouched (gsd-core: Claude's converter is null) — byte-identical output.
+ * Runtimes with an `agentKind` additionally get one native agent file per
+ * catalog role (see Native agent writers).
  */
 function buildInstallMap(source, rt) {
   const map = new Map();
   const isClaude = rt.id === DEFAULT_RUNTIME;
+  const agents = agentWriter(rt);
+  const roles = agents ? catalogRoles(source) : null;
+  const ctx = agents ? { roleByContract: roleByContractMap(roles) } : {};
   for (const { stem, content } of source.commands) {
-    const rel = `commands/${COMMAND_PREFIX}/${stem}.md`;
     const out = isClaude
       ? content
-      : convertCommand(rewriteContent(content.toString('utf8'), rt), stem, rt);
+      : convertCommand(rewriteContent(content.toString('utf8'), rt, ctx), stem, rt);
     map.set(commandDestPath(stem, rt), out);
   }
   for (const { rel, content } of source.payload) {
     const out = isClaude
       ? content
-      : rewriteContent(content.toString('utf8'), rt);
+      : rewriteContent(content.toString('utf8'), rt, ctx);
     map.set(`${PAYLOAD_DIR}/${rel}`, out);
+  }
+  if (agents) {
+    for (const [role, row] of Object.entries(roles)) {
+      map.set(agents.destPath(role), rewriteContent(agents.build(role, row), rt, ctx));
+    }
   }
   return map;
 }
@@ -649,11 +761,15 @@ function installRuntime(source, targetDir, rt) {
 
   let commandFiles = 0;
   let payloadFiles = 0;
+  let agentFiles = 0;
+  const agents = agentWriter(rt);
   for (const [rel, content] of map) {
     const dest = path.join(root, rel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, content);
-    if (rel.startsWith(`${PAYLOAD_DIR}/`)) payloadFiles++; else commandFiles++;
+    if (rel.startsWith(`${PAYLOAD_DIR}/`)) payloadFiles++;
+    else if (agents && agents.ownedPattern.test(rel)) agentFiles++;
+    else commandFiles++;
   }
 
   let removed = 0;
@@ -675,14 +791,16 @@ function installRuntime(source, targetDir, rt) {
     }
   }
 
-  return { root, commandFiles, payloadFiles, removed };
+  return { root, commandFiles, payloadFiles, agentFiles, removed };
 }
 
 function printRuntimeSummary(rt, stats) {
-  const total = stats.commandFiles + stats.payloadFiles;
+  const total = stats.commandFiles + stats.payloadFiles + stats.agentFiles;
+  const agents = agentWriter(rt);
   console.log(`  ${cyan}${rt.label}${reset} → ${rt.dir}/`);
   console.log(`    ${green}synced${reset}  commands/${COMMAND_PREFIX}/ → ${rt.dir}/${commandSurfaceLabel(rt)}  ${dim}(${stats.commandFiles} files)${reset}`);
   console.log(`    ${green}synced${reset}  ${PAYLOAD_DIR}/ → ${rt.dir}/${PAYLOAD_DIR}/  ${dim}(${stats.payloadFiles} files)${reset}`);
+  if (agents) console.log(`    ${green}synced${reset}  ${PAYLOAD_DIR}/${MODEL_CATALOG_REL} roles → ${rt.dir}/${agents.surfaceLabel}  ${dim}(${stats.agentFiles} native agent files, no model: until Stage 1 / config sets it)${reset}`);
   let line = `    ${green}Installed${reset} ${total} files into ${rt.dir}/`;
   if (stats.removed > 0) line += `  ${yellow}(removed ${stats.removed} stale)${reset}`;
   console.log(line);
@@ -743,6 +861,7 @@ module.exports = {
   rewriteNamespace,
   rewriteToolNames,
   stampRuntime,
+  rewriteSubagentTypes,
   rewriteContent,
   INCLUDE_LIST_INTRO,
   splitFrontmatter,
@@ -759,6 +878,10 @@ module.exports = {
   convertCommand,
   commandDestPath,
   isOwnedPath,
+  agentWriter,
+  buildOpencodeAgentFile,
+  catalogRoles,
+  roleByContractMap,
   collectFiles,
   readSource,
   buildInstallMap,
