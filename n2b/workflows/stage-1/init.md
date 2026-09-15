@@ -837,6 +837,10 @@ for k, ok in allowed.items():
     v = args.get(k) or cfg.get(k) or tpl[k]
     if v not in ok: sys.exit(f"CONFIG-ERROR: {k} must be one of {list(ok)}, got {v!r}")
     out[k] = v
+mf = args['max_features'] if 'max_features' in args else cfg.get('max_features', tpl['max_features'])
+if isinstance(mf, str): mf = None if mf.strip().lower() in ('', 'none', 'null') else (int(mf) if mf.strip().isdigit() else mf)
+if not (mf is None or (isinstance(mf, int) and not isinstance(mf, bool) and mf >= 1)): sys.exit(f"CONFIG-ERROR: max_features must be none or an integer >= 1, got {mf!r}")
+out['max_features'] = mf
 out['created'] = cfg.get('created') or datetime.date.today().isoformat()
 out['n2b_version'] = tpl['n2b_version']
 json.dump(out, open('.n2b/config.json', 'w'), indent=2); open('.n2b/config.json', 'a').write('\n')
@@ -844,7 +848,7 @@ print(json.dumps(out, indent=2))
 PYEOF
 ```
 
-The script prints the written file. It materializes `model_tiers` from the catalog for the chosen provider (all `null` under `inherit`), copies `n2b_version` from the template, sets `created` to today, and refuses invalid values with a `CONFIG-ERROR:` line — if that happens, fix the argument and re-run; do not edit the file by hand. The result contains exactly the seven registered fields (`model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source`, `created`, `n2b_version` — see `config-schema.md`).
+The script prints the written file. It materializes `model_tiers` from the catalog for the chosen provider (all `null` under `inherit`), copies `n2b_version` from the template, sets `created` to today, and refuses invalid values with a `CONFIG-ERROR:` line — if that happens, fix the argument and re-run; do not edit the file by hand. The result contains exactly the eight registered fields (`model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source`, `max_features`, `created`, `n2b_version` — see `config-schema.md`).
 
 Confirm to the user in one line, e.g. `Pipeline settings written — models: balanced · claude-aliases` or `Pipeline settings written — models: inherit (session model)`.
 
@@ -925,7 +929,7 @@ test -f .n2b/BRIEF.md && echo "GATE0-FILE: PASS" || echo "GATE0-FILE: FAIL"
 ```bash
 # Extract frontmatter and check for all 5 fields
 sed -n '/^---$/,/^---$/p' .n2b/BRIEF.md | grep -c '^\(project_name\|domain\|created\|status\|n2b_version\):' | xargs -I{} sh -c 'if [ {} -eq 5 ]; then echo "GATE0-FRONTMATTER: PASS (5/5 fields)"; else echo "GATE0-FRONTMATTER: FAIL ({}/5 fields)"; fi'
-[ -f .n2b/config.json ] && python3 -c "import json,sys; c=json.load(open('.n2b/config.json')); k=json.load(open('.claude/n2b/references/model-catalog.json')); t=c.get('model_tiers'); sys.exit(0 if set(c)=={'model_profile','model_provider','model_tiers','spec_review','design_system_source','created','n2b_version'} and c['model_profile'] in k['profiles'] and (c['model_provider']=='inherit' or c['model_provider'] in k['providers']) and isinstance(t,dict) and set(t)==set(k['tiers']) and all(v is None or (isinstance(v,dict) and v.get('model')) for v in t.values()) else 1)" && echo "GATE0-CONFIG: PASS (7 fields, model_profile/provider/tiers valid)" || echo "GATE0-CONFIG: FAIL (config.json missing, wrong field set, or invalid model_profile / model_provider / model_tiers)"
+[ -f .n2b/config.json ] && python3 -c "import json,sys; c=json.load(open('.n2b/config.json')); k=json.load(open('.claude/n2b/references/model-catalog.json')); t=c.get('model_tiers'); sys.exit(0 if set(c)=={'model_profile','model_provider','model_tiers','spec_review','design_system_source','max_features','created','n2b_version'} and c['model_profile'] in k['profiles'] and (c['max_features'] is None or (isinstance(c['max_features'],int) and not isinstance(c['max_features'],bool) and c['max_features']>=1)) and (c['model_provider']=='inherit' or c['model_provider'] in k['providers']) and isinstance(t,dict) and set(t)==set(k['tiers']) and all(v is None or (isinstance(v,dict) and v.get('model')) for v in t.values()) else 1)" && echo "GATE0-CONFIG: PASS (8 fields, model_profile/provider/tiers/max_features valid)" || echo "GATE0-CONFIG: FAIL (config.json missing, wrong field set, or invalid model_profile / model_provider / model_tiers / max_features)"
 { grep -q '^- \[x\] Pipeline settings collected' .n2b/tracking/stages/s1-init/STAGE.md || grep -q '^- \*\*Config:\*\* pipeline settings written with defaults' .n2b/tracking/stages/s1-init/STAGE.md; } && echo "GATE0-SETTINGS: PASS (asked, or skip recorded in Deviations)" || echo "GATE0-SETTINGS: FAIL (Step 6.5 neither ticked 'Pipeline settings collected' nor recorded the skip)"
 ```
 
@@ -980,7 +984,7 @@ Update the Gates section to reflect what you found:
 - Fill Output section:
   ```
   - .n2b/BRIEF.md (10 sections{, + Feature Direction / Design System / Source Materials when present})
-  - .n2b/config.json (model_profile, model_provider, model_tiers, spec_review, design_system_source)
+  - .n2b/config.json (model_profile, model_provider, model_tiers, spec_review, design_system_source, max_features)
   {- .n2b/inputs/design-system/ (user-supplied design artifacts) — only when provided}
   {- .n2b/inputs/source/ (user-supplied documents, preserved verbatim) — only when provided}
   ```
@@ -1122,7 +1126,7 @@ Do NOT create a git commit.
 <success_criteria>
 
 - `.n2b/BRIEF.md` exists with valid YAML frontmatter (exactly 5 fields: project_name, domain, created, status, n2b_version) and all 10 required sections
-- `.n2b/config.json` exists with exactly the seven registered fields: model_profile, model_provider, model_tiers, spec_review, design_system_source, created, n2b_version — written by the `n2b-model-materializer` block, never hand-typed; `model_profile` is the user's answer on Claude Code, Codex, and OpenCode and `inherit` on Cursor; `model_tiers` is materialized from the catalog for the chosen provider (all `null` under `inherit`)
+- `.n2b/config.json` exists with exactly the eight registered fields: model_profile, model_provider, model_tiers, spec_review, design_system_source, max_features, created, n2b_version — written by the `n2b-model-materializer` block, never hand-typed; `model_profile` is the user's answer on Claude Code, Codex, and OpenCode and `inherit` on Cursor; `model_tiers` is materialized from the catalog for the chosen provider (all `null` under `inherit`)
 - Step 6.5 was reached from Step 6 (not skipped): `- [x] Pipeline settings collected` is ticked in s1-init/STAGE.md, or the skip is recorded under `## Deviations` — never a silent default
 - Vision section is specific enough that two people would picture roughly the same product
 - Experience section reads like a story, not a spec

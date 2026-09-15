@@ -681,9 +681,12 @@ test('catalog: contains no rewrite triggers and installs byte-identical on every
   }
 });
 
-test('config template: seven registered fields in schema order, Claude alias tiers', () => {
+const CONFIG_KEYS = ['model_profile', 'model_provider', 'model_tiers', 'spec_review', 'design_system_source', 'max_features', 'created', 'n2b_version'];
+
+test('config template: eight registered fields in schema order, Claude alias tiers, no feature cap', () => {
   const tpl = JSON.parse(fs.readFileSync(path.join(REPO, 'n2b', 'templates', 'config.json'), 'utf8'));
-  assert.deepStrictEqual(Object.keys(tpl), ['model_profile', 'model_provider', 'model_tiers', 'spec_review', 'design_system_source', 'created', 'n2b_version']);
+  assert.deepStrictEqual(Object.keys(tpl), CONFIG_KEYS);
+  assert.strictEqual(tpl.max_features, null, 'the template never carries a cap');
   assert.strictEqual(tpl.model_profile, 'balanced');
   assert.strictEqual(tpl.model_provider, 'claude-aliases');
   assert.deepStrictEqual(tpl.model_tiers, catalog.providers['claude-aliases']);
@@ -783,8 +786,9 @@ test('resolver + materializer end-to-end (python3): Claude spawns unchanged, inh
   fs.mkdirSync(path.join(dir, '.n2b'));
   run(dir, '.claude', materializer, ['model_profile=balanced', 'model_provider=claude-aliases', 'design_system_source=none']);
   let cfg = readCfg(dir);
-  assert.deepStrictEqual(Object.keys(cfg), ['model_profile', 'model_provider', 'model_tiers', 'spec_review', 'design_system_source', 'created', 'n2b_version']);
+  assert.deepStrictEqual(Object.keys(cfg), CONFIG_KEYS);
   assert.deepStrictEqual(cfg.model_tiers, catalog.providers['claude-aliases']);
+  assert.strictEqual(cfg.max_features, null, 'no cap unless asked for');
   assert.strictEqual(cfg.n2b_version, require(path.join(REPO, 'package.json')).version);
   assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: PASS'), gate(dir, '.claude'));
   let out = run(dir, '.claude', resolver);
@@ -821,9 +825,27 @@ test('resolver + materializer end-to-end (python3): Claude spawns unchanged, inh
   assert.deepStrictEqual(readCfg(dir).model_tiers.heavy, { model: 'my/big' });
   assert.deepStrictEqual(readCfg(dir).model_tiers.light, { model: 'my/small' });
 
+  // feature cap (smoke run): set, kept across unrelated rewrites, cleared with none; Gate 0 validates it
+  run(dir, '.claude', materializer, ['max_features=3']);
+  cfg = readCfg(dir);
+  assert.strictEqual(cfg.max_features, 3, 'max_features=3 writes the integer 3');
+  assert.deepStrictEqual(Object.keys(cfg), CONFIG_KEYS, 'the cap sits in schema order');
+  assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: PASS'), gate(dir, '.claude'));
+  run(dir, '.claude', materializer, ['spec_review=self-only']);
+  assert.strictEqual(readCfg(dir).max_features, 3, 'an unrelated rewrite keeps the cap');
+  run(dir, '.claude', materializer, ['max_features=none']);
+  assert.strictEqual(readCfg(dir).max_features, null, 'none clears the cap');
+  run(dir, '.claude', materializer, ['spec_review=independent', 'model_profile=quality', 'model_provider=generic', 'heavy=my/big', 'standard=my/mid']);
+  const capped = JSON.parse(fs.readFileSync(path.join(dir, '.n2b/config.json'), 'utf8'));
+  for (const badCap of [0, -1, 2.5, '3', true]) {
+    fs.writeFileSync(path.join(dir, '.n2b/config.json'), JSON.stringify({ ...capped, max_features: badCap }));
+    assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: FAIL'), `max_features ${JSON.stringify(badCap)} must fail Gate 0`);
+  }
+  fs.writeFileSync(path.join(dir, '.n2b/config.json'), JSON.stringify(capped, null, 2) + '\n');
+
   // invalid values are refused and nothing is written
   const before = fs.readFileSync(path.join(dir, '.n2b/config.json'), 'utf8');
-  for (const bad of [['model_profile=turbo'], ['model_provider=nope'], ['spec_review=maybe']]) {
+  for (const bad of [['model_profile=turbo'], ['model_provider=nope'], ['spec_review=maybe'], ['max_features=0'], ['max_features=-2'], ['max_features=lots'], ['max_features=2.5']]) {
     const r = python(materializer, dir, bad);
     assert.notStrictEqual(r.status, 0, `${bad} should fail`);
     assert.ok(/CONFIG-ERROR/.test(r.stderr + r.stdout), `${bad} should print CONFIG-ERROR`);
@@ -836,11 +858,14 @@ test('resolver + materializer end-to-end (python3): Claude spawns unchanged, inh
   assert.ok(out.startsWith('MODEL_PROFILE=balanced MODEL_PROVIDER=claude-aliases RUNTIME=claude'));
   assert.deepStrictEqual(Object.fromEntries(Object.entries(parse(out)).map(([k, v]) => [k, v.model])), balancedBefore);
   assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: FAIL'), 'legacy shape fails Gate 0 (Stage 1 must write the full shape)');
-  // materializer upgrades it in place, preserving created
+  // materializer upgrades it in place, preserving created; the cap field appears as null
   run(dir, '.claude', materializer, []);
   cfg = readCfg(dir);
   assert.strictEqual(cfg.created, '2026-09-01');
   assert.deepStrictEqual(cfg.model_tiers, catalog.providers['claude-aliases']);
+  assert.deepStrictEqual(Object.keys(cfg), CONFIG_KEYS, 'legacy config upgraded to the eight-field shape');
+  assert.strictEqual(cfg.max_features, null);
+  assert.ok(gate(dir, '.claude').startsWith('GATE0-CONFIG: PASS'), 'upgraded config passes Gate 0');
 
   // Codex: the same legacy config must NOT leak aliases; default provider is inherit; openai materializes effort
   fs.writeFileSync(path.join(dir, '.n2b/config.json'), JSON.stringify({ model_profile: 'balanced', spec_review: 'independent', design_system_source: 'none', created: '2026-09-01', n2b_version: '0.2.0' }));

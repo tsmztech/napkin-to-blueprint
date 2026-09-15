@@ -9,6 +9,7 @@
   },
   "spec_review": "independent",
   "design_system_source": "none",
+  "max_features": null,
   "created": "{DATE}",
   "n2b_version": "0.3.0"
 }

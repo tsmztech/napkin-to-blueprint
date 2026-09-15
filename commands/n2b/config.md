@@ -1,7 +1,7 @@
 ---
 name: n2b:config
-description: Show or change pipeline settings after Stage 1 — model profile, provider, per-tier model IDs, spec review mode, design-system source — without re-running intake
-argument-hint: "[--show | --profile <quality|balanced|budget|inherit> | --provider <name> | --set <tier>=<model-id> | --spec-review <independent|self-only> | --design-system <none|user>]"
+description: Show or change pipeline settings after Stage 1 — model profile, provider, per-tier model IDs, spec review mode, design-system source, feature cap — without re-running intake
+argument-hint: "[--show | --profile <quality|balanced|budget|inherit> | --provider <name> | --set <tier>=<model-id> | --spec-review <independent|self-only> | --design-system <none|user> | --max-features <N|none>]"
 allowed-tools:
   - Read
   - Bash
@@ -18,6 +18,7 @@ Read and rewrite `.n2b/config.json` — the pipeline settings Stage 1 collected 
 - `--set <tier>=<model-id>` — set one tier's model ID (`frontier`, `heavy`, `standard`, `light`); implies `--provider generic`
 - `--spec-review <v>` — `independent` | `self-only`
 - `--design-system <v>` — `none` | `user`
+- `--max-features <N|none>` — cap the number of features Stage 2 defines (a smoke run of the whole pipeline), or `none` to clear; only changeable before Stage 2 has run
 
 **Writes:** `.n2b/config.json` only, always through the catalog materializer — never hand-edited. Takes effect on the next stage command; stages already completed are not re-run.
 </objective>

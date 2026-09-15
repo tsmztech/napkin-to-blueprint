@@ -3,7 +3,7 @@
   "root": ".claude",
   "fileCount": 99,
   "files": {
-    "commands/n2b/config.md": "3784449e9cde7541c3880edbcfdcd6bed815131ef8f2fe5051f36fdf9c0dec14",
+    "commands/n2b/config.md": "d7f0103479ef6a40e8dc6df3e76fb2c09f45254383272f2053da4539da1015b1",
     "commands/n2b/s1-init.md": "85d9386ac11b8cfb403c9136a3c4ece01d71f3ee01f4bd6a23d336e8385dec06",
     "commands/n2b/s2-define.md": "6770b5ef116cee94e4c1be5c44ea7292862d24b86f55267cfb8b0e7a918dea88",
     "commands/n2b/s3-specify.md": "71151605d3b7e9e386f6c675fe3f46a847fbcd9566485f94538d5cee18526af2",
@@ -32,10 +32,10 @@
     "n2b/agents/stage-5/export-prd-formatter.md": "584b7dcdd24e73c3ea50c99c77e5a501818aff05d28b4b45a42137c011196ee6",
     "n2b/agents/stage-5/export-speckit-formatter.md": "56e37c38feaab83e52bbca80d95150d7e637574e65d15164ee59a3d51ae58fac",
     "n2b/agents/stage-5/export-vibe-pack-formatter.md": "f600bf5b25a85c21a83766549045682c5a564a04cc2f15a2ba08721dea76893b",
-    "n2b/references/config-schema.md": "454a9425efedbbcaa0e55057b8e91693ff70955028c97b0f9926eedfb684a81f",
+    "n2b/references/config-schema.md": "b099a2560545e91b4ff79a319129a22e901337615cf69e09fddcef8f98c82085",
     "n2b/references/id-prefixes.md": "d89688d2acee6ec9b81f1c9c3ee6b9747cfd3f9f542612148cf22c7440d62491",
     "n2b/references/model-catalog.json": "af353ec393e5d77a9170b69783f930ba42e59faabfb665cc3cefcc4e99a818c2",
-    "n2b/references/model-profiles.md": "93fcba6ae128b9b0835ae75a90b3ac7195ef40447cf30b55988d7328d17f2eb4",
+    "n2b/references/model-profiles.md": "2f3043cb5b97a5004fd42ca830f74f7ca8a51f1a943b6f4129c22733bf615312",
     "n2b/references/pipeline-gatekeeper.md": "cce96829903d4a219794baf0bc4d34c0a0558c9e98caa05375df646b271139b6",
     "n2b/references/pipeline-rules.md": "d5578e17d8e8fd6e6e2f070e625b1125958d92084497cd34f1f8ed9affc2d4e3",
     "n2b/references/stage-1/questioning.md": "f9808a118bf51df54f3260e7f7ab12df3d12acf37e0cb706067f5d9cd2e460ff",
@@ -56,7 +56,7 @@
     "n2b/references/stage-5/fidelity-rules.md": "e38549f2817583466ba36c0905d8a6049c8a1f8298b02a99912666e18d0a3ae9",
     "n2b/references/tracking-protocol.md": "0856f7796c5b4aa9e01c8ccc8f27b68982dfedb2039b71cc4ed1ee31eb8170fc",
     "n2b/references/ui-brand.md": "f67e07dc25df80cbbfeb3f0bb08c7625a34a18ff14b427750f239769c715b65c",
-    "n2b/templates/config.json": "5ed04b3ce1e5f16ef4391258ad732c903e5cc582d386b2bcdc41cb24e65ffb75",
+    "n2b/templates/config.json": "f05b363c4e150bd65f9d88fce4395198f00ee005877c15b0d2bbf7196750a8f7",
     "n2b/templates/stage-1/brief.md": "cb6510ab9c7c675858be7a486b659e1cd6dec76b5c1e4778dd5fd91f533673d4",
     "n2b/templates/stage-2/agent-contract.md": "6ff4319aa5523a8287d1f0da7ae29911b814866e2d323ccc31e5d189e97dc008",
     "n2b/templates/stage-2/assumptions-constraints.md": "9a529c5756caccb9f1157db874a2096355ab3d1dc30411e867e2c0b8ca9e290b",
@@ -95,12 +95,12 @@
     "n2b/templates/tracking/stage-s5-dashboard.md": "28f5778ffba768b4578f0c2fc30e7d503c622bd86d720c917f4813d4a95a0e5a",
     "n2b/templates/tracking/stage-simple.md": "de8d080fc9c42381df7be9a18047434f76a945068013b2663d2bd59891d03e17",
     "n2b/templates/tracking/state.md": "cdb8a3970916a6c9ad2fb3678dea5278b4fbddd1424b77639850e392113fa0d5",
-    "n2b/workflows/config.md": "e7b1423fd7684a6f6aa45fa4c1037ac27498b00c5631719f5cb377de6f3c1ebe",
-    "n2b/workflows/stage-1/init.md": "88c8eb7dae5b719f48edd55a3e12a4e047bde21ecec75e7f7e928bacdea7adb8",
+    "n2b/workflows/config.md": "8ce11f2f9c233b6ffd1ae2200bf9a7a8bcfb947bd9314babff31fdb883c77702",
+    "n2b/workflows/stage-1/init.md": "ed23a8b154c20e8a984a3f5a21956ac6579e9190bdc86e72c8be720025caf0f1",
     "n2b/workflows/stage-2/define.md": "73d9fea8060cd4cbeb4c1e8660abf35876dc12ffd5f9b3376c69c1c23b9040f3",
     "n2b/workflows/stage-3/specify.md": "94a225024acba8f142278b098ee920df174aff776c75e783cc0772f9c17ab05b",
     "n2b/workflows/stage-4/architect.md": "93aaca4931df433ba4c230e5060d008ce4d4512c423e50b7f52fe253314297af",
     "n2b/workflows/stage-5/export.md": "cb40777a69c03bded1d566d4a2244cb1566f5173e6878465152425971838e9f8",
-    "n2b/workflows/status.md": "5d1de07b9643b0a89736f89d076def0909a7e98390b8f6fc397559eddb04b635"
+    "n2b/workflows/status.md": "4197b0ef2979384e6e41130fd6e2e2e374d60e0d2762072fc51d3ab3e7ac69f0"
   }
 }
