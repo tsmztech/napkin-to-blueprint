@@ -18,7 +18,7 @@ This document is the single owner of the `.n2b/config.json` schema. Every field 
 | `spec_review` | string | `independent` \| `self-only` | `independent` | Stage 1 Step 6.5, `/n2b:config --spec-review` | Stage 3 workflow — toggles the independent spec review pass (Pass C): `independent` spawns the independent Spec Quality Reviewer (default); `self-only` relies on the spec producer's self-review alone. |
 | `design_system_source` | string | `none` \| `user` | `none` | Stage 1 Step 6.5, `/n2b:config --design-system` | Stage 3 passthrough step and Gate A Category 5 — `user` carries the files found in `.n2b/inputs/design-system/` verbatim into the package at `.n2b/specifications/design-system/` (see Design-System Intake below); `none` means the package ships design-agnostic (no design-system output exists). n2b never generates a design system. |
 | `created` | string | ISO date `YYYY-MM-DD` | today's date at instantiation | Stage 1 Step 6.5 (preserved by `/n2b:config`) | Informational/provenance — records when the pipeline was configured. |
-| `n2b_version` | string | semver | the template's value (currently `0.2.0`) | Stage 1 Step 6.5 and `/n2b:config` (copied from the template by the materializer — never typed from memory) | Informational/provenance — records which engine version produced the blueprint package. |
+| `n2b_version` | string | semver | the template's value (currently `0.3.0`) | Stage 1 Step 6.5 and `/n2b:config` (copied from the template by the materializer — never typed from memory) | Informational/provenance — records which engine version produced the blueprint package. |
 
 ## Missing/Invalid Handling
 

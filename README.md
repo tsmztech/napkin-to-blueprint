@@ -183,7 +183,7 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 |---|---|---|---|
 | Claude Code | profile | `claude-aliases` (`fable` / `opus` / `sonnet` / `haiku` tier aliases — never stale) | yes — the Agent tool's `model` parameter |
 | Codex *(experimental)* | notice, profile (Inherit recommended if unsure), provider | `openai` (gpt-5.6 sol / terra / luna with reasoning effort) or custom IDs | only when the host's `spawn_agent` exposes a `model` field; otherwise agents run on the session model. Not yet verified live |
-| OpenCode | notice, profile, provider | `anthropic`, `openai`, or custom IDs | yes — the installer emits one native agent file per n2b role (`.opencode/agents/n2b-<role>.md`) and Stage 1 / `/n2b-config` write each role's model into its `model:` line; re-run `/n2b-config` after reinstalling n2b. Not yet verified live |
+| OpenCode | notice, profile, provider | `anthropic`, `openai`, or custom IDs | yes — the installer emits one native agent file per n2b role (`.opencode/agents/n2b-<role>.md`) and Stage 1 / `/n2b-config` write each role's model into its `model:` line, which reinstalls preserve. Not yet verified live |
 | Cursor | not asked | — | never — Cursor's configured model applies to every agent |
 
 `/n2b:config` changes any of this later. `/n2b:status` shows the current setting.

@@ -27,7 +27,7 @@ const {
   RUNTIMES, RUNTIME_ORDER, parseArgs, buildRuntimePromptText, parseRuntimeInput,
   rewritePaths, rewriteIncludes, rewriteNamespace, rewriteToolNames, stampRuntime,
   rewriteContent, INCLUDE_LIST_INTRO, splitFrontmatter, frontmatterField, frontmatterList,
-  convertCommand, commandDestPath, readSource, buildInstallMap, agentWriter, rewriteSubagentTypes, roleByContractMap,
+  convertCommand, commandDestPath, readSource, buildInstallMap, agentWriter, rewriteSubagentTypes, roleByContractMap, preserveAgentModel,
 } = installer;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -465,6 +465,50 @@ test('--opencode emits one agents/n2b-<role>.md per catalog role: subagent, desc
   for (const rt of [claude, codex, cursor]) {
     assert.ok([...buildInstallMap(readSource(REPO), rt).keys()].every((k) => !k.startsWith('agents/')), `${rt.id} must not get agent files`);
   }
+});
+
+test('preserveAgentModel carries an installed model: line into the rebuilt agent file, and only that', () => {
+  const fresh = '---\ndescription: "x"\nmode: subagent\n# model: hint\n---\n\nbody\n';
+  assert.strictEqual(preserveAgentModel('', fresh), fresh, 'no existing file → unchanged');
+  assert.strictEqual(preserveAgentModel('no frontmatter at all', fresh), fresh);
+  assert.strictEqual(preserveAgentModel('---\ndescription: "old"\nmode: subagent\n---\nold body\n', fresh), fresh, 'existing without model: → unchanged');
+  assert.strictEqual(preserveAgentModel('---\nmodel:\n---\n', fresh), fresh, 'empty model: value is not carried');
+  const kept = preserveAgentModel('---\ndescription: "old"\nmode: subagent\nmodel: anthropic/claude-fable-5\ntemperature: 0.2\n---\nold body\n', fresh);
+  assert.strictEqual(kept, '---\ndescription: "x"\nmode: subagent\nmodel: anthropic/claude-fable-5\n# model: hint\n---\n\nbody\n', 'model: lands right after mode:, nothing else is carried');
+  // idempotent and never doubles up when the fresh file already carries a model: line
+  assert.strictEqual(preserveAgentModel(kept, kept), kept);
+  assert.strictEqual(preserveAgentModel(kept, kept.replace('anthropic/claude-fable-5', 'openai/gpt-5')), kept, 'the installed value wins over a stale one in the template');
+  assert.strictEqual(preserveAgentModel(kept, 'no frontmatter'), 'no frontmatter', 'a fresh file without frontmatter is left alone');
+});
+
+test('reinstalling --opencode keeps the model: lines Stage 1 / config wrote into agents/n2b-*.md', () => {
+  const dir = tmpDir();
+  installOk(['--opencode', '--target', dir]);
+  const agentsDir = path.join(dir, '.opencode/agents');
+  const synth = path.join(agentsDir, 'n2b-synthesizer.md');
+  const visionary = path.join(agentsDir, 'n2b-visionary.md');
+  const installed = fs.readFileSync(synth, 'utf8');
+  // what the n2b-agent-sync block does: insert model: after mode:
+  fs.writeFileSync(synth, installed.replace('mode: subagent\n', 'mode: subagent\nmodel: anthropic/claude-fable-5\n'));
+  fs.writeFileSync(visionary, fs.readFileSync(visionary, 'utf8').replace('mode: subagent\n', 'mode: subagent\nmodel: openai/gpt-5\n'));
+  // and a user edit to the body, which the installer legitimately resets
+  fs.appendFileSync(synth, '\nuser scribble\n');
+
+  const result = installOk(['--opencode', '--target', dir]);
+  assert.ok(result.stdout.includes('model: kept on 2 from the previous install'), result.stdout);
+  const after = fs.readFileSync(synth, 'utf8');
+  assert.strictEqual(after, installed.replace('mode: subagent\n', 'mode: subagent\nmodel: anthropic/claude-fable-5\n'), 'model: survives, body is the fresh stub');
+  assert.ok(/^model: openai\/gpt-5$/m.test(fs.readFileSync(visionary, 'utf8')));
+  for (const f of fs.readdirSync(agentsDir)) {
+    if (f === 'n2b-synthesizer.md' || f === 'n2b-visionary.md') continue;
+    assert.ok(!/^model:/m.test(fs.readFileSync(path.join(agentsDir, f), 'utf8')), `${f}: still no model: line`);
+  }
+  // a third run changes nothing and reports the same count
+  const again = installOk(['--opencode', '--target', dir]);
+  assert.ok(again.stdout.includes('model: kept on 2 from the previous install'), again.stdout);
+  assert.strictEqual(fs.readFileSync(synth, 'utf8'), after);
+  // fresh installs still say so
+  assert.ok(installOk(['--opencode', '--target', tmpDir()]).stdout.includes('no model: until Stage 1 / config sets it'));
 });
 
 test('buildInstallMap is deterministic and keyed by destination path', () => {

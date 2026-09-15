@@ -118,7 +118,7 @@ Per-agent models right now ({model_profile}):
 
 {If the resolver printed MODEL_PROVIDER=inherit or every role is (omit): "Every agent runs on the host's session model."}
 {If model_tiers was absent from the file (legacy config): "⚠ Legacy config (pre-0.3) — shown values are the runtime defaults. Any change below rewrites it into the current shape."}
-{If RUNTIME is opencode: "ℹ OpenCode runs each agent on the `model:` line of .claude/agents/n2b-<role>.md, kept in sync by this command — after reinstalling n2b, run /n2b:config again."}
+{If RUNTIME is opencode: "ℹ OpenCode runs each agent on the `model:` line of .claude/agents/n2b-<role>.md, kept in sync by this command (reinstalling n2b keeps those lines)."}
 
 Change with: /n2b:config --profile <p> · --provider <name> · --set <tier>=<id> · --spec-review <v> · --design-system <v>
 ```

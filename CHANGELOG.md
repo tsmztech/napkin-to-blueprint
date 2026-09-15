@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-14
+
 ### Added
 - `/n2b:config` — show or change pipeline settings after Stage 1 (`--show`, `--profile`, `--provider`, `--set <tier>=<id>`, `--spec-review`, `--design-system`; no flags asks the Stage 1 questions again). Writes only `.n2b/config.json`, always through the catalog materializer.
 - `n2b/references/model-catalog.json` — single source of truth for model routing: 16 agent roles × 3 profiles → 4 semantic tiers (`frontier`, `heavy`, `standard`, `light`), provider presets (`claude-aliases`, `anthropic`, `openai`, `generic`), and per-runtime transport. The table in `model-profiles.md` is a rendered projection, checked by `npm test`.
@@ -11,7 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `inherit` model profile (no routing — every agent uses the host's session model), accepted on every runtime.
 - Stage 1 Step 6.5 is runtime-aware and un-skippable: Claude Code asks the profile; Codex and OpenCode show a notice, then ask profile and provider (Inherit offered first); Cursor writes `inherit` with a one-line notice. A skipped question is recorded under `## Deviations` and checked by Gate 0 (`GATE0-SETTINGS`, `GATE0-CONFIG`).
 - `/n2b:status` shows a `Models:` line.
-- OpenCode model routing: the installer now emits one native subagent file per n2b role (`.opencode/agents/n2b-<role>.md`, `mode: subagent`, no `model:` at install) and rewrites every workflow spawn to name its `subagent_type`. Stage 1 Step 6.5 and `/n2b-config` write each role's resolved model into the file's `model:` line (or strip it under `inherit`) with the new `n2b-agent-sync` block owned by `model-profiles.md`. Stale `n2b-*` agent files are pruned on reinstall; user agents in the same directory are untouched.
+- OpenCode model routing: the installer now emits one native subagent file per n2b role (`.opencode/agents/n2b-<role>.md`, `mode: subagent`, no `model:` at install) and rewrites every workflow spawn to name its `subagent_type`. Stage 1 Step 6.5 and `/n2b-config` write each role's resolved model into the file's `model:` line (or strip it under `inherit`) with the new `n2b-agent-sync` block owned by `model-profiles.md`. Reinstalling keeps each file's `model:` line, prunes stale `n2b-*` agent files, and leaves user agents in the same directory untouched.
 
 ### Changed
 - Model tiers are named `frontier` / `heavy` / `standard` / `light`; `fable` / `opus` / `sonnet` / `haiku` survive only as the Claude Code alias values. Claude Code spawns are unchanged.
@@ -20,7 +22,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Known limitations
 - Codex routing is still unverified against a live Codex CLI (the live smoke test remains on the todo list).
-- OpenCode routing matches the vendor docs for agent files and the `task` tool but is likewise unverified against a live OpenCode run. Re-running the installer rewrites the agent files without a `model:` line — run `/n2b-config` afterwards to re-apply the profile.
+- OpenCode routing matches the vendor docs for agent files and the `task` tool but is likewise unverified against a live OpenCode run.
 
 ## [0.2.0] - 2026-09-13
 
@@ -46,6 +48,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Initial release: five-stage pipeline (`/n2b:s1-init`, `/n2b:s2-define`, `/n2b:s3-specify`, `/n2b:s4-architect`, `/n2b:s5-export`) plus `/n2b:status`, for Claude Code.
 - Stage 5 export targets including dev-brief, Jira, Spec Kit, and vibe-coding packs.
 
-[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tsmztech/napkin-to-blueprint/releases/tag/v0.1.0
