@@ -1,6 +1,6 @@
 {
   "name": "napkin-to-blueprint",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Napkin to Blueprint (n2b) — idea-to-blueprint engine for Claude Code, Codex, OpenCode, and Cursor",
   "keywords": [
     "claude-code",

@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-14
+
 ### Added
 - `/n2b:config` — show or change pipeline settings after Stage 1 (`--show`, `--profile`, `--provider`, `--set <tier>=<id>`, `--spec-review`, `--design-system`; no flags asks the Stage 1 questions again). Writes only `.n2b/config.json`, always through the catalog materializer.
 - `n2b/references/model-catalog.json` — single source of truth for model routing: 16 agent roles × 3 profiles → 4 semantic tiers (`frontier`, `heavy`, `standard`, `light`), provider presets (`claude-aliases`, `anthropic`, `openai`, `generic`), and per-runtime transport. The table in `model-profiles.md` is a rendered projection, checked by `npm test`.
@@ -46,6 +48,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Initial release: five-stage pipeline (`/n2b:s1-init`, `/n2b:s2-define`, `/n2b:s3-specify`, `/n2b:s4-architect`, `/n2b:s5-export`) plus `/n2b:status`, for Claude Code.
 - Stage 5 export targets including dev-brief, Jira, Spec Kit, and vibe-coding packs.
 
-[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tsmztech/napkin-to-blueprint/releases/tag/v0.1.0
