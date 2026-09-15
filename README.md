@@ -41,6 +41,8 @@ Flags combine (`--claude --cursor`). Installs are project-local: n2b's commands,
 
 From there, each stage tells you the exact next command when it finishes. To update n2b later, re-run the same `npx` command. Restart the runtime (or start a new session) after installing so it discovers the new commands.
 
+**Testing the pipeline?** Start with `/n2b:s1-init --smoke` (or `--smoke 5`). It caps Stage 2 at 3 features (or N), so every stage, gate, checkpoint, and export still runs end-to-end — in a fraction of the time and quota. Everything past the cap is listed under *Deferred by feature cap* in `scope-boundaries.md`, every banner says the run is capped, and `/n2b:status` shows the cap. Change or clear it with `/n2b:config --max-features <N|none>` before Stage 2 runs. Don't use it for a real blueprint — a capped run is a rehearsal, not a product definition.
+
 > Commands in the rest of this README are written in Claude Code form (`/n2b:<name>`). On Codex use `$n2b-<name>`; on OpenCode and Cursor use `/n2b-<name>`.
 
 ## How it works
@@ -163,7 +165,7 @@ Reports pipeline state, per-stage progress, integrity checks, export freshness, 
 
 ### Anytime — `/n2b:config`
 
-Shows or changes the pipeline settings Stage 1 collected, without re-running intake: `/n2b:config --show` prints the model every agent role would get right now; `--profile <quality|balanced|budget|inherit>`, `--provider <name>`, `--set <tier>=<model-id>`, `--spec-review <independent|self-only>`, and `--design-system <none|user>` change one setting each; no flags asks the same questions Stage 1 did. Changes take effect on the next stage command.
+Shows or changes the pipeline settings Stage 1 collected, without re-running intake: `/n2b:config --show` prints the model every agent role would get right now; `--profile <quality|balanced|budget|inherit>`, `--provider <name>`, `--set <tier>=<model-id>`, `--spec-review <independent|self-only>`, `--design-system <none|user>`, and `--max-features <N|none>` (the smoke-run feature cap — locked once Stage 2 is complete) change one setting each; no flags asks the same questions Stage 1 did. Changes take effect on the next stage command.
 
 ## Bring your own design system
 
@@ -210,7 +212,7 @@ node bin/install.js --claude --target /path/to/test/project   # install a local 
 npm test                                                       # installer tests, incl. Claude Code byte-identity
 ```
 
-Everything is Markdown — commands, workflows, agents, and templates are all `.md` files. After editing source, re-run the installer before testing. Claude Code output is a verbatim copy of source and is pinned by `test/fixtures/claude-baseline.json`; after an intentional source change, refresh it with `node test/install.test.js --update-baseline`.
+Everything is Markdown — commands, workflows, agents, and templates are all `.md` files. After editing source, re-run the installer before testing; to exercise every stage end-to-end without a full-size run, start the test project with `/n2b:s1-init --smoke` (see Quickstart). Claude Code output is a verbatim copy of source and is pinned by `test/fixtures/claude-baseline.json`; after an intentional source change, refresh it with `node test/install.test.js --update-baseline`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development loop and PR checklist, [CHANGELOG.md](CHANGELOG.md) for release notes, and [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 

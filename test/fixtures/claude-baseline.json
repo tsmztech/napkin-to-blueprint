@@ -55,7 +55,7 @@
     "n2b/references/stage-5/export-target-registry.md": "421769931583fa69b02c74b3a2101549589543db75cc6c41a0911001148583ae",
     "n2b/references/stage-5/fidelity-rules.md": "e38549f2817583466ba36c0905d8a6049c8a1f8298b02a99912666e18d0a3ae9",
     "n2b/references/tracking-protocol.md": "0856f7796c5b4aa9e01c8ccc8f27b68982dfedb2039b71cc4ed1ee31eb8170fc",
-    "n2b/references/ui-brand.md": "f67e07dc25df80cbbfeb3f0bb08c7625a34a18ff14b427750f239769c715b65c",
+    "n2b/references/ui-brand.md": "12c5e54f1eeedbe8dd85663cab27911d476d3fc6d100c609c52b26b6eb2fb9dc",
     "n2b/templates/config.json": "f05b363c4e150bd65f9d88fce4395198f00ee005877c15b0d2bbf7196750a8f7",
     "n2b/templates/stage-1/brief.md": "cb6510ab9c7c675858be7a486b659e1cd6dec76b5c1e4778dd5fd91f533673d4",
     "n2b/templates/stage-2/agent-contract.md": "6ff4319aa5523a8287d1f0da7ae29911b814866e2d323ccc31e5d189e97dc008",
@@ -98,8 +98,8 @@
     "n2b/workflows/config.md": "8ce11f2f9c233b6ffd1ae2200bf9a7a8bcfb947bd9314babff31fdb883c77702",
     "n2b/workflows/stage-1/init.md": "124658e672aa1d0c07853549a0683e4f27fdad039e152135657cf1aa153f5384",
     "n2b/workflows/stage-2/define.md": "a2fe974ac9ced3bc8b6a63226cc83d952a7f7b6c2b9b560348be6d45b98d5bbe",
-    "n2b/workflows/stage-3/specify.md": "94a225024acba8f142278b098ee920df174aff776c75e783cc0772f9c17ab05b",
-    "n2b/workflows/stage-4/architect.md": "93aaca4931df433ba4c230e5060d008ce4d4512c423e50b7f52fe253314297af",
+    "n2b/workflows/stage-3/specify.md": "cf2ae6ac8c21723227f839a542f640eca84ce4ce25c055e4ad6696bd03d145f5",
+    "n2b/workflows/stage-4/architect.md": "c23a4339b759e313b52b1f163a3778b2b3ccde292431bcbecaf9be039cf20ab7",
     "n2b/workflows/stage-5/export.md": "cb40777a69c03bded1d566d4a2244cb1566f5173e6878465152425971838e9f8",
     "n2b/workflows/status.md": "4197b0ef2979384e6e41130fd6e2e2e374d60e0d2762072fc51d3ab3e7ac69f0"
   }

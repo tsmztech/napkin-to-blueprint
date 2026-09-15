@@ -324,12 +324,21 @@ for role, row in cat['roles'].items():
 PYEOF
 ```
 
+**Feature cap (label only):** read `max_features` from `.n2b/config.json` right after the model resolution. It is a positive integer only on a capped (smoke/test) run — written by `/n2b:s1-init --smoke [N]` or `/n2b:config --max-features N` — and `null` (→ empty here) on a full run. Stage 4 **never enforces it** — Stage 2's gates did, so the Stage 3 spec set is already capped — and none of its floors shrink under it (Research Scope ≥ 11 rows, ≥ 3 options per decision area, the full Gate 4 category set): the cap only labels the start banner, so a reader of the transcript knows why the feature set is small.
+
+```bash
+# Feature cap — empty on a full run; used only for the banner line below
+MAX_FEATURES=$(python3 -c "import json; v=json.load(open('.n2b/config.json')).get('max_features'); print(v if isinstance(v, int) and v > 0 else '')" 2>/dev/null)
+echo "MAX_FEATURES=${MAX_FEATURES:-unset}"
+```
+
 Display the Pass A banner and the pipeline flow diagram:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 n2b > PASS A
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{  ○  Capped run — max {MAX_FEATURES} features (smoke test) — only when MAX_FEATURES is set}
 
   Pass A   Profile Analyst        --- extract technical profile from Stage 3 specs
               ↓
@@ -1459,6 +1468,7 @@ Warnings:
 - SOFT warnings appended after the PACKAGE READY block
 - gate-fail on Gate 4 HARD failures: `stage-4-gate-4-failed`, `GATE 4 FAILED` banner + per-category failure evidence + re-run routing
 - All gate checks (Gate A, Gate B, Gate 4) use Bash only (grep, find, awk, wc, ls) — not the Read tool
+- **Capped-run label:** `MAX_FEATURES` read once at Step 2 (`max_features` from config; empty on a full run); when set, the Pass A start banner carries the `○  Capped run — max {N} features (smoke test)` status line — and nothing else changes: Stage 4 never enforces the cap and none of its floors (Research Scope ≥ 11 rows, ≥ 3 options per area, all Gate 4 categories) shrink; on a full run the line is absent
 - All banners use registered ui-brand.md names (`PASS A`–`PASS E`, `GATE B PASSED`/`GATE B FAILED`, `GATE 4 PASSED`/`GATE 4 FAILED`, `PRE-FLIGHT FAILED`, `PACKAGE READY`) with the `n2b >` prefix and exactly 40 `━` characters
 - No human interaction required at any point after the entry gate — fully autonomous, zero pauses
 

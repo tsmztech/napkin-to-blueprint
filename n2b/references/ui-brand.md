@@ -112,7 +112,7 @@ n2b > {BANNER NAME}
 
 | Banner | When |
 |--------|------|
-| `CHECKPOINT` | A Stage 3 pass batch completes (every Pass A/B/C batch ends here — only the terminal Pass D + Gate A invocation is checkpoint-free); the block shows the checkpoint number and batch position, a per-pass progress table (`✓ ● ○`) with remaining runs, the run-of-total estimate, and the `/n2b:s3-specify --continue` instruction |
+| `CHECKPOINT` | A Stage 3 pass batch completes (every Pass A/B/C batch ends here — only the terminal Pass D + Gate A invocation is checkpoint-free); the block shows the checkpoint number and batch position, a per-pass progress table (`✓ ● ○`) with remaining runs, the run-of-total estimate (suffixed ` · capped run (max {N} features)` on a capped run — see Status Lines), and the `/n2b:s3-specify --continue` instruction |
 
 ### Handoff & Export — Stage 4 completion, Stage 5
 
@@ -213,7 +213,10 @@ Use within pass and gate banners to show agent or check status:
   ✓  {description}                 ← gate check passed
   ✗  {description}                 ← gate check failed
   ⚠  {count} soft warnings         ← non-blocking issues
+  ○  Capped run — max {N} features (smoke test)   ← capped-run notice (start banners only)
 ```
+
+**Capped-run label.** When `.n2b/config.json` `max_features` is set — a smoke/test run started with `/n2b:s1-init --smoke [N]` or `/n2b:config --max-features N` — the run is labelled, never re-shaped: Stage 2 and Stage 4 show the `Capped run` status line above directly under their first pass banner; Stage 1's completion banner shows `○  Capped run — Stage 2 will define at most {N} features`; Stage 3 has no separate line and instead appends ` · capped run (max {N} features)` to its run-count lines (the start banner's `{FEATURE_COUNT} features → ~{T0} runs …` line, the resume summary line, and every `CHECKPOINT` progress heading); `/n2b:status` shows a `Cap:` line next to `Models:`. The label is informational — it is not a banner name and never a gate result (Stage 2's gates report the cap as `FEATURE-CAP: PASS/FAIL` check lines like any other check). On a full run (`max_features: null`) the label is absent everywhere.
 
 ## Anti-Patterns
 
