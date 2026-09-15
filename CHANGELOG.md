@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- Stage 3 batch messaging: the Stage 2 hand-off banner now explains that Stage 3 is batched and estimates the run count; every `CHECKPOINT` and `--continue` resume shows a per-pass progress table (`✓ ● ○`), batch X of Y, run R of ~T, and the next pass. The remaining-run estimate now measures Pass B/C against the full feature count (it previously only counted already-analyzed features, undercounting during Pass A).
+- `/n2b:status` between-stages route and the gatekeeper Next-Stage Lookup carry the Stage 3 batch hint.
+- README documents `/n2b:s3-specify --batch all`.
+
 ## [0.3.0] - 2026-09-14
 
 ### Added
