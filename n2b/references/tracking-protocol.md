@@ -190,7 +190,7 @@ Update body:
 
 ### Display
 
-Render the `CHECKPOINT` banner block (registered in ui-brand.md) with pass-scoped batch progress, the per-pass remaining workload, and the continue instruction, then END the invocation — no further passes, gates, or transitions run.
+Render the `CHECKPOINT` banner block (registered in ui-brand.md) with the checkpoint number and batch position, the per-pass progress table with remaining runs, the run-of-total estimate, and the continue instruction, then END the invocation — no further passes, gates, or transitions run.
 
 </transition>
 
