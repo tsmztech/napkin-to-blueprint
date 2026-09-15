@@ -612,7 +612,7 @@ function buildOpencodeAgentFile(role, row) {
     '---',
     `description: ${yamlQuote(description)}`,
     'mode: subagent',
-    `# model: is written here by n2b from .n2b/config.json model_tiers (Stage 1 Step 6.5, /n2b:config) — do not edit by hand; re-run /n2b:config after reinstalling n2b`,
+    `# model: is written here by n2b from .n2b/config.json model_tiers (Stage 1 Step 6.5, /n2b:config) — do not edit by hand; reinstalling n2b keeps this line`,
     '---',
     '',
     `You are n2b's **${row.label}** (Stage ${row.stage}). The prompt that spawned you begins with "Read the agent contract at \`<path>\`": read that file in full and execute it exactly as written, with the inputs, output paths, and scope the prompt gives you. Your contract is ${contracts.length === 1 ? contracts[0] : `one of:\n${contracts.map((c) => `- ${c}`).join('\n')}`}${contracts.length === 1 ? '.' : ''}`,
@@ -622,12 +622,32 @@ function buildOpencodeAgentFile(role, row) {
   ].join('\n');
 }
 
+/**
+ * Carry the `model:` frontmatter line of an already-installed agent file into
+ * its freshly built replacement, so a reinstall does not silently reset the
+ * routing Stage 1 / config wrote (GSD #1688). Placement mirrors the
+ * n2b-agent-sync block: directly after `mode:`. Returns `fresh` unchanged when
+ * there is nothing to carry.
+ */
+const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n/;
+function preserveAgentModel(existing, fresh) {
+  const oldFm = FRONTMATTER_RE.exec(existing);
+  const modelLine = oldFm && oldFm[1].split('\n').find((l) => /^model:\s*\S/.test(l));
+  const newFm = FRONTMATTER_RE.exec(fresh);
+  if (!modelLine || !newFm) return fresh;
+  const lines = newFm[1].split('\n').filter((l) => !l.startsWith('model:'));
+  const at = lines.findIndex((l) => l.startsWith('mode:'));
+  lines.splice((at === -1 ? lines.length - 1 : at) + 1, 0, modelLine);
+  return `---\n${lines.join('\n')}\n---\n${fresh.slice(newFm[0].length)}`;
+}
+
 const AGENT_WRITERS = {
   'opencode-agents': {
     destPath: (role) => `agents/${COMMAND_PREFIX}-${role}.md`,
     ownedPattern: new RegExp(`^agents/${COMMAND_PREFIX}-[^/]+\\.md$`),
     surfaceLabel: `agents/${COMMAND_PREFIX}-*.md`,
     build: buildOpencodeAgentFile,
+    preserve: preserveAgentModel,
   },
 };
 
@@ -762,14 +782,21 @@ function installRuntime(source, targetDir, rt) {
   let commandFiles = 0;
   let payloadFiles = 0;
   let agentFiles = 0;
+  let modelsKept = 0;
   const agents = agentWriter(rt);
   for (const [rel, content] of map) {
     const dest = path.join(root, rel);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, content);
+    let out = content;
     if (rel.startsWith(`${PAYLOAD_DIR}/`)) payloadFiles++;
-    else if (agents && agents.ownedPattern.test(rel)) agentFiles++;
-    else commandFiles++;
+    else if (agents && agents.ownedPattern.test(rel)) {
+      agentFiles++;
+      if (fs.existsSync(dest)) {
+        const merged = agents.preserve(fs.readFileSync(dest, 'utf8'), String(content));
+        if (merged !== String(content)) { out = merged; modelsKept++; }
+      }
+    } else commandFiles++;
+    fs.writeFileSync(dest, out);
   }
 
   let removed = 0;
@@ -791,7 +818,7 @@ function installRuntime(source, targetDir, rt) {
     }
   }
 
-  return { root, commandFiles, payloadFiles, agentFiles, removed };
+  return { root, commandFiles, payloadFiles, agentFiles, modelsKept, removed };
 }
 
 function printRuntimeSummary(rt, stats) {
@@ -800,7 +827,12 @@ function printRuntimeSummary(rt, stats) {
   console.log(`  ${cyan}${rt.label}${reset} → ${rt.dir}/`);
   console.log(`    ${green}synced${reset}  commands/${COMMAND_PREFIX}/ → ${rt.dir}/${commandSurfaceLabel(rt)}  ${dim}(${stats.commandFiles} files)${reset}`);
   console.log(`    ${green}synced${reset}  ${PAYLOAD_DIR}/ → ${rt.dir}/${PAYLOAD_DIR}/  ${dim}(${stats.payloadFiles} files)${reset}`);
-  if (agents) console.log(`    ${green}synced${reset}  ${PAYLOAD_DIR}/${MODEL_CATALOG_REL} roles → ${rt.dir}/${agents.surfaceLabel}  ${dim}(${stats.agentFiles} native agent files, no model: until Stage 1 / config sets it)${reset}`);
+  if (agents) {
+    const models = stats.modelsKept > 0
+      ? `model: kept on ${stats.modelsKept} from the previous install`
+      : 'no model: until Stage 1 / config sets it';
+    console.log(`    ${green}synced${reset}  ${PAYLOAD_DIR}/${MODEL_CATALOG_REL} roles → ${rt.dir}/${agents.surfaceLabel}  ${dim}(${stats.agentFiles} native agent files, ${models})${reset}`);
+  }
   let line = `    ${green}Installed${reset} ${total} files into ${rt.dir}/`;
   if (stats.removed > 0) line += `  ${yellow}(removed ${stats.removed} stale)${reset}`;
   console.log(line);
@@ -880,6 +912,7 @@ module.exports = {
   isOwnedPath,
   agentWriter,
   buildOpencodeAgentFile,
+  preserveAgentModel,
   catalogRoles,
   roleByContractMap,
   collectFiles,
