@@ -4,7 +4,7 @@
   "fileCount": 99,
   "files": {
     "commands/n2b/config.md": "d7f0103479ef6a40e8dc6df3e76fb2c09f45254383272f2053da4539da1015b1",
-    "commands/n2b/s1-init.md": "85d9386ac11b8cfb403c9136a3c4ece01d71f3ee01f4bd6a23d336e8385dec06",
+    "commands/n2b/s1-init.md": "b2fa6af99fb9bd577e9c13007de196778494b2a3e4dc72200b64fc01436a2fbb",
     "commands/n2b/s2-define.md": "6770b5ef116cee94e4c1be5c44ea7292862d24b86f55267cfb8b0e7a918dea88",
     "commands/n2b/s3-specify.md": "71151605d3b7e9e386f6c675fe3f46a847fbcd9566485f94538d5cee18526af2",
     "commands/n2b/s4-architect.md": "7fbae3daa60aa3e7fda8157393df563b28b6b5cfcbfd2cfcb7df438e779219aa",
@@ -96,7 +96,7 @@
     "n2b/templates/tracking/stage-simple.md": "de8d080fc9c42381df7be9a18047434f76a945068013b2663d2bd59891d03e17",
     "n2b/templates/tracking/state.md": "cdb8a3970916a6c9ad2fb3678dea5278b4fbddd1424b77639850e392113fa0d5",
     "n2b/workflows/config.md": "8ce11f2f9c233b6ffd1ae2200bf9a7a8bcfb947bd9314babff31fdb883c77702",
-    "n2b/workflows/stage-1/init.md": "ed23a8b154c20e8a984a3f5a21956ac6579e9190bdc86e72c8be720025caf0f1",
+    "n2b/workflows/stage-1/init.md": "124658e672aa1d0c07853549a0683e4f27fdad039e152135657cf1aa153f5384",
     "n2b/workflows/stage-2/define.md": "73d9fea8060cd4cbeb4c1e8660abf35876dc12ffd5f9b3376c69c1c23b9040f3",
     "n2b/workflows/stage-3/specify.md": "94a225024acba8f142278b098ee920df174aff776c75e783cc0772f9c17ab05b",
     "n2b/workflows/stage-4/architect.md": "93aaca4931df433ba4c230e5060d008ce4d4512c423e50b7f52fe253314297af",

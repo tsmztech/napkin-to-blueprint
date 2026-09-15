@@ -311,12 +311,22 @@ test('Codex writer: quoted SKILL.md frontmatter, adapter header, no allowed-tool
   assert.ok(!/\.claude\//.test(out) && !/n2b:/.test(out));
 });
 
+test('Codex/Cursor writers: s1-init re-emits the --smoke argument-hint in the adapter header', () => {
+  for (const rt of [codex, cursor]) {
+    const { frontmatter, body } = splitFrontmatter(realCommand('s1-init', rt));
+    assert.ok(!frontmatter.includes('argument-hint'));
+    assert.ok(body.includes('Arguments: `[--smoke [N]]`'));
+    assert.ok(body.includes('`--smoke [N]`'));
+  }
+});
+
 test('Cursor writer: identifier name, quoted description, adapter header', () => {
   const out = realCommand('s1-init', cursor);
   const { frontmatter, body } = splitFrontmatter(out);
   assert.strictEqual(frontmatter, 'name: n2b-s1-init\ndescription: "Initialize Stage 1 — open conversation to capture project vision and produce BRIEF.md"');
   assert.ok(body.startsWith('\n\n<cursor_skill_adapter>\n'));
   assert.ok(body.includes('`/n2b-s1-init`'));
+  assert.ok(body.includes('Arguments: `[--smoke [N]]`'));
   assert.ok(body.includes('Task(subagent_type="generalPurpose"'));
   assert.ok(body.includes('</cursor_skill_adapter>\n\n<objective>'));
   assert.ok(!out.includes('AskUserQuestion'));
