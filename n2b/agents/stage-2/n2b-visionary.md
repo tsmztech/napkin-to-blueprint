@@ -57,7 +57,7 @@ After building the persona set, generate features through the 6-lens decompositi
 - Build the persona first. Understand who this user is, what they are trying to accomplish, and what context they are in.
 - Map their needs: from the persona, identify what that person must be able to do to accomplish their stated goals. These needs become your feature candidates.
 - Derive features from needs. Each distinct user need yields one feature.
-- **Target:** as many features as the product honestly needs, fully tiered and phased — covering core functionality plus important supporting capabilities.
+- **Target:** as many features as the product honestly needs, fully tiered and phased — covering core functionality plus important supporting capabilities — unless a feature cap is in force (`max_features`; see Feature Cap below).
 - **Mark every derived feature** in its Rationale field: `[INFERRED from: brief goal "<exact quote from brief>" — <one sentence of product reasoning>]`
 - **Assign full tiers:** Every inferred feature gets a tier — Core, Important, or Nice-to-Have — with explicit rationale for the tier assignment in the Rationale field.
 
@@ -89,6 +89,9 @@ Audit accumulated features against decomposition-checklists.md Section 2. For ea
 
 ### Consolidation
 After all lenses: deduplicate candidates, assign priority tiers (Core / Important / Nice-to-Have), assign a release phase to every feature (MVP / v1 / Later — see Functional Depth & Phase below), assign feature types (User-Facing / Platform / Lifecycle), populate Connected Entities and Key Capabilities fields, complete the eight-field Functional Depth block for every feature, and assign IDs per id-prefixes.md.
+
+### Feature Cap (smoke/test runs only)
+When the orchestrator's prompt states a feature cap (`max_features` = N, set by `/n2b:s1-init --smoke [N]`), consolidation ends with **at most N features** in `draft-product-features.md`. Choose the N that (1) close the brief's core value flow end-to-end (the completeness audit's value-flow walk must still hold within the chosen set), (2) include at least one Core feature, and (3) cover the widest spread of feature kinds — prefer a set that will yield a screen-type, an automation/notification-type, and, if the brief names an integration, an integration-type spec, so Stage 3 exercises every spec template. Every other feature the product honestly needs goes to `draft-scope-boundaries.md` under `## Deferral Notes › ### Deferred by feature cap` as a one-line bullet starting with the `[CAP-DEFERRED]` marker — name, target phase, what it does, why it ranked below the defined set — so no discovered capability is silently lost and every open value-flow segment has an explicit deferral. Deferred bullets are not exclusions and take no SC-XX IDs. Journeys, the Domain Entity Inventory, the Feature Interaction Summary, `**Interactions:**` fields, the Access Matrix, and success metrics reference the defined features only. Gate 1 fails the pass when the draft carries more than N `FEAT-` entries. Without a stated cap, nothing here applies — define every feature the product honestly needs.
 
 ---
 
@@ -130,7 +133,7 @@ One feature = one user goal.
 - "Meal Logging" is one feature. The sub-capabilities the user needs within it (create entry, edit entry, delete entry, view history) are bullet points within that feature's entry — not separate features.
 - Do not decompose a user goal into CRUD verbs. "Create Meal," "Edit Meal," and "Delete Meal" are not three features — they are one feature named by its user goal.
 - Infrastructure features (Onboarding, Settings, Error Handling, Notifications) are regular features in the priority-tiered list with their own tier and rationale. They serve user goals even if they are supporting capabilities.
-- Soft guidance: define as many features as the product honestly needs, fully tiered and phased — use judgment based on the product's complexity. Tiers and phases carry the ordering, so no honest feature is omitted to keep the count small.
+- Soft guidance: define as many features as the product honestly needs, fully tiered and phased — use judgment based on the product's complexity. Tiers and phases carry the ordering, so no honest feature is omitted to keep the count small — unless a feature cap is in force (`max_features`), in which case the surplus is recorded as `[CAP-DEFERRED]` rather than omitted.
 
 ---
 
@@ -153,7 +156,7 @@ This is a derivation chain, not a preference. The persona grounds all work. Feat
 
 After completing all 6 drafts, run a single coherence pass:
 
-1. Every BRIEF.md goal is addressed by at least one feature
+1. Every BRIEF.md goal is addressed by at least one feature (under a feature cap: by a feature or a `[CAP-DEFERRED]` bullet)
 2. Every Core feature appears in at least one user journey
 3. No contradictions exist across documents
 4. Scope exclusions do not exclude features the brief explicitly requested
@@ -185,7 +188,7 @@ All outputs written to `.n2b/features/drafts/`:
 - `draft-user-persona.md` — persona set: primary persona behavioral profile always; secondary personas/roles only when the brief warrants them, each provenance-marked; Access Matrix (persona/role × major capability); conforms to `user-persona.md` template structure; set frontmatter: `document_type: user-persona`, `produced_by: product-visionary`, `variant: draft`, `status: draft`, `created: {today's date}`
 - `draft-user-journeys.md` — named journeys with 4-6 stages each; at least `max(3, ceil(feature_count / 4))` journeys, every Core and Important feature appearing in at least one journey, each journey naming its owning persona, carrying a `**Coverage:**` field (`First-use | Regular | Edge/Recovery`, placed immediately after `**Owning Persona:**`), and including one failure/recovery variant — across the journey set, all three Coverage values must each appear on at least one journey (matching the template's coverage rules); conforms to `user-journeys.md` template structure; set frontmatter: `document_type: user-journeys`, `produced_by: product-visionary`, `variant: draft`, `status: draft`, `created: {today's date}`
 - `draft-product-features.md` — features grouped by priority tier (Core / Important / Nice-to-Have); each entry includes ID, Description, Priority, Phase, Type, Rationale, Connected Entities, Key Capabilities, and the eight-field Functional Depth block; includes the Domain Entity Inventory and the Feature Interaction Summary table; conforms to `product-features.md` template structure; set frontmatter: `document_type: product-features`, `produced_by: product-visionary`, `variant: draft`, `status: draft`, `created: {today's date}`
-- `draft-scope-boundaries.md` — in-scope summary, scale expectations, and explicit exclusions by category (User Scope, Feature Scope) each with one-line rationale, plus phase-targeted deferral notes; conforms to `scope-boundaries.md` template structure; set frontmatter: `document_type: scope-boundaries`, `produced_by: product-visionary`, `variant: draft`, `status: draft`, `created: {today's date}`
+- `draft-scope-boundaries.md` — in-scope summary, scale expectations, and explicit exclusions by category (User Scope, Feature Scope) each with one-line rationale, plus phase-targeted deferral notes (under a feature cap, the `### Deferred by feature cap` subsection listing every `[CAP-DEFERRED]` feature); conforms to `scope-boundaries.md` template structure; set frontmatter: `document_type: scope-boundaries`, `produced_by: product-visionary`, `variant: draft`, `status: draft`, `created: {today's date}`
 - `draft-success-metrics.md` — functional success measures tied to Core features; each entry includes Metric Name, Description, Target, Rationale, and Connected Feature; metrics may target a persona; conforms to `success-metrics.md` template structure; set frontmatter: `document_type: success-metrics`, `produced_by: product-visionary`, `variant: draft`, `status: draft`, `created: {today's date}`
 - `draft-assumptions-constraints.md` — falsifiable assumptions, deliberate product constraints, non-functional expectations, and category-level functional dependencies; conforms to `assumptions-constraints.md` template structure; set frontmatter: `document_type: assumptions-constraints`, `produced_by: product-visionary`, `variant: draft`, `status: draft`, `created: {today's date}`
 
@@ -215,6 +218,7 @@ All outputs written to `.n2b/features/drafts/`:
 - Brief's explicitly stated goals — features or constraints stated in BRIEF.md cannot be removed or contradicted; they can be refined and structured but not overridden
 - Output-completeness constraint (pipeline-rules.md: output-completeness) — every section must have substantive content, no TBD markers
 - Document production order — persona first, then features, journeys, scope, metrics, assumptions; this sequence is a derivation chain, not a preference
+- Feature cap (`max_features`) when the orchestrator's prompt states one — the draft feature list never exceeds it; the surplus is recorded as `[CAP-DEFERRED]` bullets, and Gate 1 fails the pass otherwise
 
 </decision_authority>
 

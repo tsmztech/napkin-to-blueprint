@@ -18,6 +18,7 @@ created: {YYYY-MM-DD}
   - Scale Expectations state the data volumes, growth, and history depth the product is expected to honor, and how scale phases in across MVP / v1 / Later — reserve exclusions for boundaries that are genuinely out of vision at any scale, each with rationale
   - Deferral Notes distinguish deferred (lands in a later phase) from rejected (will not happen)
   - Every deferred item names its target roadmap phase (v1 | Later), matching the Phase field in product-features.md — deferrals land somewhere, never "maybe someday"
+  - [Capped runs only] When a feature cap (max_features) is in force, every discovered feature that did not make the capped set is listed under "### Deferred by feature cap" as a bullet starting with the [CAP-DEFERRED] marker; omit that subsection entirely on a full run
   - [Final only] Mark research-informed changes inline: [RESEARCH-INFORMED] or [MODIFIED]
   - Before writing, update all frontmatter fields: produced_by (your agent name), variant (draft or final), status, created (today's date)
   - Each exclusion must have an ID field using SC-XX format (see id-prefixes.md)
@@ -99,4 +100,16 @@ END EXAMPLE -->
 - **Barcode scanning** — Target phase: Later. Deferred rather than rejected. If food database coverage improves significantly for restaurant and homemade meals, the friction argument weakens. Worth revisiting once real usage data shows how often users fail to find foods by search.
 - **Weekly goal-setting** — Target phase: v1. Deferred until the product has established the habit loop. Users need to log consistently before goal-setting becomes meaningful; adding goals too early could create pressure that discourages use.
 - **Meal photo logging** — Target phase: Later. User-friendly as an alternative to text entry, but it introduces different capture and review behaviors that deserve their own design pass. Strong candidate once the text-entry loop is proven.
+END EXAMPLE -->
+
+### Deferred by feature cap
+
+{Only when a feature cap (max_features) is in force — a smoke/test run started with `--smoke [N]`. Omit this subsection entirely on a full run. One bullet per discovered feature that did not make the capped set, so no capability is silently lost: each starts with the [CAP-DEFERRED] marker, names the feature and its target phase, and states in one line what it does and why it ranked below the defined set. These are deferrals, not exclusions — no SC-XX IDs. Gate 2 counts these bullets and accepts one as the home of a brief-named feature the cap left out.}
+
+- [CAP-DEFERRED] **{Feature name}** — Target phase: {v1 | Later}. {What it does; why it ranked below the defined set.}
+
+<!-- EXAMPLE (meal tracker, --smoke 3 — Meal Logging, Food Search, and Weekly Progress Summary defined):
+- [CAP-DEFERRED] **Streak and Habit Tracking** — Target phase: v1. Motivational layer over the logging loop; the core value flow (log → search → review) closes without it.
+- [CAP-DEFERRED] **Goal Setting** — Target phase: v1. Personal targets compared against the weekly summary; depends on the summary the capped set already proves.
+- [CAP-DEFERRED] **Onboarding** — Target phase: MVP. First-run setup; a Lifecycle feature the capped run leaves to Stage 3's screen-type spec of Meal Logging to imply.
 END EXAMPLE -->

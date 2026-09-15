@@ -28,6 +28,14 @@ These are your operating references throughout this workflow.
 
 ## Step 0 — Entry Gate
 
+**Parse the invocation arguments first** (the text passed after the command name, if any):
+
+- `--smoke` present → this is a **capped run** (a smoke test of the whole pipeline). `--smoke {N}` with `{N}` a positive integer → `MAX_FEATURES={N}`; bare `--smoke` → `MAX_FEATURES=3`. Anything else after `--smoke` is not a count: use `MAX_FEATURES=3` and note it for the STAGE.md `## Deviations` section once the tracker exists in Step 1.5 (`- **Invocation:** invalid --smoke value "{value}" ignored → max_features 3 used`).
+- `--smoke` absent → `MAX_FEATURES` unset (a full run — nothing below changes).
+- No other arguments are recognized; ignore unrecognized text.
+
+`MAX_FEATURES` is the feature cap (`config-schema.md`, Feature Cap): it is written to `.n2b/config.json` as `max_features` in Step 6.5 and applied by Stage 2 when it defines the features — Stage 1 itself only records it (Step 1.5), keeps Path D's proposal within it, and says so in the notices at Step 2 and Step 7. The conversation, the brief, and Gate 0 are the same in a capped run: the brief still describes the whole product.
+
 Read `n2b/references/pipeline-gatekeeper.md` and execute Check 1, Check 2, and Check 3 for **Stage 1** as defined in that reference.
 
 **Check 1 — Pipeline Exists:**
@@ -302,7 +310,7 @@ This file is a live tracker while status is in-progress. Once status changes to 
 ### Gate 0 — Brief Validation
 - Status: pending
 - [ ] BRIEF.md exists with valid frontmatter (5 required fields)
-- [ ] config.json written with the 7 registered fields; Step 6.5 ticked or its skip recorded in Deviations
+- [ ] config.json written with the 8 registered fields; Step 6.5 ticked or its skip recorded in Deviations
 - [ ] All 10 required sections non-empty
 - [ ] project_name and domain present
 - [ ] Self-audit: roles confirmed or single-role stated
@@ -326,6 +334,8 @@ This file is a live tracker while status is in-progress. Once status changes to 
 
 (Populated on stage completion. Lists all files produced by this stage.)
 ```
+
+**When `MAX_FEATURES` is set**, record the cap under `## Deviations` immediately after writing the file (a capped run is a deliberate deviation from the full pipeline, and the receipt must show it): `- **Capped run:** max_features={N} (--smoke)` — followed by the `- **Invocation:** …` line from Step 0 when the `--smoke` value was invalid.
 
 **5, 6, 7. Create pre-trackers for Stages 2, 3, 4 (write in parallel)**
 
@@ -374,6 +384,8 @@ Display the questioning banner:
 n2b > QUESTIONING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+When `MAX_FEATURES` is set, add one line directly under the banner: `Capped run — Stage 2 will define at most {N} features (smoke test; change with /n2b:config --max-features).` Then run the conversation exactly as in a full run — the cap never shortens the questioning or the brief.
 
 Ask inline (freeform text, NOT AskUserQuestion):
 
@@ -580,7 +592,7 @@ The LLM captured the vision. User is satisfied.
 
 The user wants to go one level deeper and define high-level features before handing off.
 
-1. LLM proposes an initial feature set (3-8 features) derived from the conversation. Each feature: **name** — 1-2 sentence description at capability level, not spec level.
+1. LLM proposes an initial feature set (3-8 features) derived from the conversation. When `MAX_FEATURES` is set, propose **at most `MAX_FEATURES`** — the ones that close the product's core value flow end-to-end — and never more, even if the conversation surfaced more. Each feature: **name** — 1-2 sentence description at capability level, not spec level.
 
    **Feature granularity guidance:**
    - Right level: "Asset scanning — Automatically detect and categorize files by type when pointed at a project folder"
@@ -608,6 +620,7 @@ n2b > HERE'S WHAT I GOT
 - **[Feature 1]** — [1-2 sentence description]
 - **[Feature 2]** — [1-2 sentence description]
 ...
+{*Capped run — at most {N} features; Stage 2 will keep to this cap and record anything else it discovers as deferred.* — only when MAX_FEATURES is set}
 
 **Still open:** [coverage tail — same rules as Step 4]
 ```
@@ -631,6 +644,7 @@ n2b > HERE'S WHAT I GOT
    - Don't ask about tech implementation
    - Don't propose features the user didn't hint at
    - Don't force exactly N features — if 3 captures it, 3 is fine
+   - When `MAX_FEATURES` is set, don't let the list grow past it — if the user adds a feature beyond the cap, say the cap will apply and ask which one it replaces (or suggest they re-run without `--smoke` for the full product)
 
 ---
 
@@ -798,13 +812,14 @@ Resolved: `PROFILE` = `inherit`, `PROVIDER` = `inherit`.
 
 ### Write the config (all runtimes)
 
-Two further fields are written without asking, on every runtime:
+Three further fields are written without asking, on every runtime:
 - `spec_review`: always `"independent"` — Stage 3 runs the independent spec quality review by default.
 - `design_system_source`: `"user"` if design-system artifacts were ingested into `.n2b/inputs/design-system/` during the conversation, else `"none"` (Stage 3 carries supplied artifacts into the package verbatim; it never generates a design system).
+- `max_features`: `MAX_FEATURES` from Step 0 when `--smoke` was given (pass `max_features={N}`); otherwise pass nothing — the materializer writes `null` (no cap, a full run). Never ask about it here: the cap is a command-line decision, not a Stage 1 question.
 
 The pipeline runs manual-only: every stage ends paused and the user triggers the next stage command themselves. There is no auto-pilot mode and no `pipeline_mode` field.
 
-Write `.n2b/config.json` by running the **`n2b-model-materializer`** block from `model-profiles.md` (section "Materializing the Config") — never by hand-typing JSON. The block is reproduced here verbatim; substitute the resolved values into the argument list (`{PROFILE}`, `{PROVIDER}`), append `design_system_source=<none|user>`, and append `TIER_ARGS` when the provider is `generic`:
+Write `.n2b/config.json` by running the **`n2b-model-materializer`** block from `model-profiles.md` (section "Materializing the Config") — never by hand-typing JSON. The block is reproduced here verbatim; substitute the resolved values into the argument list (`{PROFILE}`, `{PROVIDER}`), append `design_system_source=<none|user>`, append `max_features={N}` when `MAX_FEATURES` is set, and append `TIER_ARGS` when the provider is `generic`:
 
 ```bash
 # n2b-model-materializer — write .n2b/config.json from the catalog (config-schema.md owns the fields). Arguments are key=value pairs; omitted keys keep the current config's value, else the default. Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
@@ -837,6 +852,10 @@ for k, ok in allowed.items():
     v = args.get(k) or cfg.get(k) or tpl[k]
     if v not in ok: sys.exit(f"CONFIG-ERROR: {k} must be one of {list(ok)}, got {v!r}")
     out[k] = v
+mf = args['max_features'] if 'max_features' in args else cfg.get('max_features', tpl['max_features'])
+if isinstance(mf, str): mf = None if mf.strip().lower() in ('', 'none', 'null') else (int(mf) if mf.strip().isdigit() else mf)
+if not (mf is None or (isinstance(mf, int) and not isinstance(mf, bool) and mf >= 1)): sys.exit(f"CONFIG-ERROR: max_features must be none or an integer >= 1, got {mf!r}")
+out['max_features'] = mf
 out['created'] = cfg.get('created') or datetime.date.today().isoformat()
 out['n2b_version'] = tpl['n2b_version']
 json.dump(out, open('.n2b/config.json', 'w'), indent=2); open('.n2b/config.json', 'a').write('\n')
@@ -844,9 +863,9 @@ print(json.dumps(out, indent=2))
 PYEOF
 ```
 
-The script prints the written file. It materializes `model_tiers` from the catalog for the chosen provider (all `null` under `inherit`), copies `n2b_version` from the template, sets `created` to today, and refuses invalid values with a `CONFIG-ERROR:` line — if that happens, fix the argument and re-run; do not edit the file by hand. The result contains exactly the seven registered fields (`model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source`, `created`, `n2b_version` — see `config-schema.md`).
+The script prints the written file. It materializes `model_tiers` from the catalog for the chosen provider (all `null` under `inherit`), copies `n2b_version` from the template, sets `created` to today, and refuses invalid values with a `CONFIG-ERROR:` line — if that happens, fix the argument and re-run; do not edit the file by hand. The result contains exactly the eight registered fields (`model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source`, `max_features`, `created`, `n2b_version` — see `config-schema.md`).
 
-Confirm to the user in one line, e.g. `Pipeline settings written — models: balanced · claude-aliases` or `Pipeline settings written — models: inherit (session model)`.
+Confirm to the user in one line, e.g. `Pipeline settings written — models: balanced · claude-aliases` or `Pipeline settings written — models: inherit (session model)`; when `MAX_FEATURES` is set, append ` · cap: max {N} features (smoke run)`.
 
 ### Sync native agent files (all runtimes — a no-op except on OpenCode)
 
@@ -894,7 +913,7 @@ PYEOF
 - Update `.n2b/tracking/STATE.md` frontmatter: `current_step: gate-0`, `last_updated: {ISO timestamp}`
 - Update `.n2b/tracking/STATE.md` body Session Continuity: Last action "Pipeline settings written (model_profile: {value}, model_provider: {value})", Next action "Gate 0 validation"
 
-**Fallback — CRITICAL: config.json is ALWAYS written.** Never fail Stage 1 over config. If the user cancels a question, the AskUserQuestion tool is unavailable, a Custom ID stays empty after one re-ask, or anything else goes wrong during preference collection, run the materializer with the defaults (`model_profile=balanced model_provider=claude-aliases` on `claude`; `model_profile=inherit` elsewhere; plus `design_system_source` as resolved above), then the agent-sync block, and move on — **but the skip must be visible**:
+**Fallback — CRITICAL: config.json is ALWAYS written.** Never fail Stage 1 over config. If the user cancels a question, the AskUserQuestion tool is unavailable, a Custom ID stays empty after one re-ask, or anything else goes wrong during preference collection, run the materializer with the defaults (`model_profile=balanced model_provider=claude-aliases` on `claude`; `model_profile=inherit` elsewhere; plus `design_system_source` as resolved above and `max_features={N}` when `--smoke` was given — the cap is never dropped by the fallback), then the agent-sync block, and move on — **but the skip must be visible**:
 - Do **not** tick `- [ ] Pipeline settings collected`.
 - Append to `.n2b/tracking/stages/s1-init/STAGE.md` `## Deviations`:
   `- **Config:** pipeline settings written with defaults — user was not asked ({reason})`
@@ -925,7 +944,7 @@ test -f .n2b/BRIEF.md && echo "GATE0-FILE: PASS" || echo "GATE0-FILE: FAIL"
 ```bash
 # Extract frontmatter and check for all 5 fields
 sed -n '/^---$/,/^---$/p' .n2b/BRIEF.md | grep -c '^\(project_name\|domain\|created\|status\|n2b_version\):' | xargs -I{} sh -c 'if [ {} -eq 5 ]; then echo "GATE0-FRONTMATTER: PASS (5/5 fields)"; else echo "GATE0-FRONTMATTER: FAIL ({}/5 fields)"; fi'
-[ -f .n2b/config.json ] && python3 -c "import json,sys; c=json.load(open('.n2b/config.json')); k=json.load(open('.claude/n2b/references/model-catalog.json')); t=c.get('model_tiers'); sys.exit(0 if set(c)=={'model_profile','model_provider','model_tiers','spec_review','design_system_source','created','n2b_version'} and c['model_profile'] in k['profiles'] and (c['model_provider']=='inherit' or c['model_provider'] in k['providers']) and isinstance(t,dict) and set(t)==set(k['tiers']) and all(v is None or (isinstance(v,dict) and v.get('model')) for v in t.values()) else 1)" && echo "GATE0-CONFIG: PASS (7 fields, model_profile/provider/tiers valid)" || echo "GATE0-CONFIG: FAIL (config.json missing, wrong field set, or invalid model_profile / model_provider / model_tiers)"
+[ -f .n2b/config.json ] && python3 -c "import json,sys; c=json.load(open('.n2b/config.json')); k=json.load(open('.claude/n2b/references/model-catalog.json')); t=c.get('model_tiers'); sys.exit(0 if set(c)=={'model_profile','model_provider','model_tiers','spec_review','design_system_source','max_features','created','n2b_version'} and c['model_profile'] in k['profiles'] and (c['max_features'] is None or (isinstance(c['max_features'],int) and not isinstance(c['max_features'],bool) and c['max_features']>=1)) and (c['model_provider']=='inherit' or c['model_provider'] in k['providers']) and isinstance(t,dict) and set(t)==set(k['tiers']) and all(v is None or (isinstance(v,dict) and v.get('model')) for v in t.values()) else 1)" && echo "GATE0-CONFIG: PASS (8 fields, model_profile/provider/tiers/max_features valid)" || echo "GATE0-CONFIG: FAIL (config.json missing, wrong field set, or invalid model_profile / model_provider / model_tiers / max_features)"
 { grep -q '^- \[x\] Pipeline settings collected' .n2b/tracking/stages/s1-init/STAGE.md || grep -q '^- \*\*Config:\*\* pipeline settings written with defaults' .n2b/tracking/stages/s1-init/STAGE.md; } && echo "GATE0-SETTINGS: PASS (asked, or skip recorded in Deviations)" || echo "GATE0-SETTINGS: FAIL (Step 6.5 neither ticked 'Pipeline settings collected' nor recorded the skip)"
 ```
 
@@ -980,7 +999,7 @@ Update the Gates section to reflect what you found:
 - Fill Output section:
   ```
   - .n2b/BRIEF.md (10 sections{, + Feature Direction / Design System / Source Materials when present})
-  - .n2b/config.json (model_profile, model_provider, model_tiers, spec_review, design_system_source)
+  - .n2b/config.json (model_profile, model_provider, model_tiers, spec_review, design_system_source, max_features{={N} — the value only when set})
   {- .n2b/inputs/design-system/ (user-supplied design artifacts) — only when provided}
   {- .n2b/inputs/source/ (user-supplied documents, preserved verbatim) — only when provided}
   ```
@@ -1096,6 +1115,7 @@ Display the standardized stage-complete continuation message:
 ## ✓ Stage 1: Intake Complete
 
 BRIEF.md produced — 10 sections
+{○  Capped run — Stage 2 will define at most {N} features — only when max_features is set}
 
 ---
 
@@ -1122,8 +1142,9 @@ Do NOT create a git commit.
 <success_criteria>
 
 - `.n2b/BRIEF.md` exists with valid YAML frontmatter (exactly 5 fields: project_name, domain, created, status, n2b_version) and all 10 required sections
-- `.n2b/config.json` exists with exactly the seven registered fields: model_profile, model_provider, model_tiers, spec_review, design_system_source, created, n2b_version — written by the `n2b-model-materializer` block, never hand-typed; `model_profile` is the user's answer on Claude Code, Codex, and OpenCode and `inherit` on Cursor; `model_tiers` is materialized from the catalog for the chosen provider (all `null` under `inherit`)
+- `.n2b/config.json` exists with exactly the eight registered fields: model_profile, model_provider, model_tiers, spec_review, design_system_source, max_features, created, n2b_version — written by the `n2b-model-materializer` block, never hand-typed; `model_profile` is the user's answer on Claude Code, Codex, and OpenCode and `inherit` on Cursor; `model_tiers` is materialized from the catalog for the chosen provider (all `null` under `inherit`)
 - Step 6.5 was reached from Step 6 (not skipped): `- [x] Pipeline settings collected` is ticked in s1-init/STAGE.md, or the skip is recorded under `## Deviations` — never a silent default
+- `--smoke [N]` was honoured end-to-end: `max_features` in config.json is N (3 when no N was given — also on the config fallback path), s1-init/STAGE.md `## Deviations` carries `- **Capped run:** max_features={N} (--smoke)`, the capped-run notice appeared under the QUESTIONING banner and in the completion message, and Path D (when taken) proposed at most N features — and without `--smoke`, `max_features` is `null` and none of those lines appear
 - Vision section is specific enough that two people would picture roughly the same product
 - Experience section reads like a story, not a spec
 - Constraints contains only items the user volunteered, or "None identified (asked)" — and the constraints question was asked exactly once, openly, never as an interrogation

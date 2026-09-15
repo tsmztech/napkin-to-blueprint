@@ -12,7 +12,7 @@ Before starting, read these files:
 
 - `.n2b/tracking/PIPELINE.md` — primary source for pipeline state (frontmatter: pipeline_status, active_stage, last_completed_stage, project_name; body: stage checklist lines and the `## Export History` table)
 - `.n2b/tracking/STATE.md` — current step and stage status (frontmatter: current_step, stage_status; body: Current Position section)
-- `.n2b/config.json` — pipeline settings, for the one-line `Models:` display only (this workflow never writes it — `/n2b:config` does)
+- `.n2b/config.json` — pipeline settings, for the one-line `Models:` display and the `Cap:` line of a capped run only (this workflow never writes it — `/n2b:config` does)
 - `.n2b/tracking/MANIFEST.md` — canonical package manifest (frontmatter: package_version; body: `## Package Inventory` table). May not exist before the first stage completes — handle absence per Step 3.
 - Active STAGE.md — path depends on active_stage value from PIPELINE.md (see stage path mapping in Step 2)
 - `n2b/references/ui-brand.md` — banner format (exactly 40 `━` characters, `n2b > {BANNER NAME}` prefix)
@@ -92,6 +92,14 @@ print('MODELS=inherit (session model)' if p=='inherit' or pr=='inherit' or not i
 ```
 
 Record the printed value (after `MODELS=`) as `models_line`. `/n2b:config` owns changes to these settings; this workflow only displays them.
+
+Read the feature cap (config-schema.md, Feature Cap):
+
+```bash
+python3 -c "import json; m=json.load(open('.n2b/config.json')).get('max_features'); print(f'CAP=max {m} features (smoke run)' if isinstance(m,int) and not isinstance(m,bool) and m>=1 else 'CAP=')" 2>/dev/null || echo "CAP="
+```
+
+Record the value after `CAP=` as `cap_line`. When it is empty (no cap — the normal case), the report omits its `Cap:` line entirely.
 
 Read STATE.md frontmatter:
 
@@ -412,6 +420,7 @@ n2b > STATUS
 
 Progress: {progress_bar} {percent}%  ({stages_complete} of 4 stages)
 Models: {models_line}   (change: /n2b:config)
+{Cap: {cap_line}   (change: /n2b:config) — this line only when cap_line is non-empty}
 
 {stage checklist copied verbatim from PIPELINE.md body — all lines with - [ ] / - [x] and any ← ACTIVE / ← NEXT markers. The Stage 5: Export line displays as part of the verbatim checklist but never counts toward the progress bar.}
 
@@ -453,6 +462,7 @@ n2b > STATUS
 
 Progress: ████████ 100%  (4 of 4 stages)
 Models: {models_line}   (change: /n2b:config)
+{Cap: {cap_line}   (change: /n2b:config) — this line only when cap_line is non-empty}
 
 {stage checklist verbatim from PIPELINE.md body}
 
@@ -501,7 +511,7 @@ The package inventory ALWAYS renders from MANIFEST.md rows — there is no fallb
 - Integrity scan runs: derive from artifacts → compare to PIPELINE.md → flag drift/corruption → cross-check STAGE.md — and covers Stages 1–4 AND Stage 5 exports (`.n2b/exports/` vs Export History rows), including the manifest presence check (MANIFEST.md absent while stages claim completion = drift finding)
 - Drift offers confirmed auto-repair with user prompt before writing anything; corruption flags without repair; manifest and export findings are flagged with routes but never auto-repaired (this workflow never writes MANIFEST.md or Export History rows)
 - Export staleness: any Export History row whose Package version < MANIFEST package_version reports `⚠ STALE (upstream changed since export)` and routes to `/n2b:s5-export {target}`; matching version reports fresh; staleness never counts as an integrity failure
-- Console report displays: progress bar (8-char `█`/`░` spanning Stages 1–4 only), a `Models:` line from `.n2b/config.json` (profile · provider · tier IDs, or `inherit (session model)`, or a pre-0.3 notice), checkbox stage list (verbatim from PIPELINE.md), current position, integrity status, Exports section (own section — never a progress segment), and next action
+- Console report displays: progress bar (8-char `█`/`░` spanning Stages 1–4 only), a `Models:` line from `.n2b/config.json` (profile · provider · tier IDs, or `inherit (session model)`, or a pre-0.3 notice), a `Cap:` line only when `max_features` is set (capped/smoke run), checkbox stage list (verbatim from PIPELINE.md), current position, integrity status, Exports section (own section — never a progress segment), and next action
 - All 5 routing conditions are handled, covering every `pipeline_status` enum value plus not-initialized: no PIPELINE.md → s1-init, `failed` → re-run command, `running` → resume command, `blueprint-complete` → handoff-package block with manifest inventory + export offers, `paused` → next stage command (including any note carried on the gatekeeper Next-Stage Lookup row — the Stage 3 batch hint)
 - Progress bar uses fixed mapping (0→0%, 1→25%, 2→50%, 3→75%, 4→100%)
 - Banner uses exactly 40 `━` characters with `n2b > STATUS` (per ui-brand.md §Banner Format)

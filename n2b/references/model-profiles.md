@@ -125,7 +125,7 @@ Rules the script encodes (so a reader can audit it):
 
 ## Materializing the Config
 
-Stage 1 Step 6.5 and the `/n2b:config` command both write `.n2b/config.json` with this block — never by hand. Replace `{PROFILE}` / `{PROVIDER}` with the resolved answers; add `spec_review=…`, `design_system_source=…`, or `<tier>=<model id>` pairs (for the `generic` provider) as needed. Any key not passed keeps the current config's value, else the template's default. The script exits non-zero with a `CONFIG-ERROR:` line on an invalid value and writes nothing in that case.
+Stage 1 Step 6.5 and the `/n2b:config` command both write `.n2b/config.json` with this block — never by hand. Replace `{PROFILE}` / `{PROVIDER}` with the resolved answers; add `spec_review=…`, `design_system_source=…`, `max_features=<N|none>`, or `<tier>=<model id>` pairs (for the `generic` provider) as needed. Any key not passed keeps the current config's value, else the template's default. The script exits non-zero with a `CONFIG-ERROR:` line on an invalid value and writes nothing in that case.
 
 ```bash
 # n2b-model-materializer — write .n2b/config.json from the catalog (config-schema.md owns the fields). Arguments are key=value pairs; omitted keys keep the current config's value, else the default. Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
@@ -158,6 +158,10 @@ for k, ok in allowed.items():
     v = args.get(k) or cfg.get(k) or tpl[k]
     if v not in ok: sys.exit(f"CONFIG-ERROR: {k} must be one of {list(ok)}, got {v!r}")
     out[k] = v
+mf = args['max_features'] if 'max_features' in args else cfg.get('max_features', tpl['max_features'])
+if isinstance(mf, str): mf = None if mf.strip().lower() in ('', 'none', 'null') else (int(mf) if mf.strip().isdigit() else mf)
+if not (mf is None or (isinstance(mf, int) and not isinstance(mf, bool) and mf >= 1)): sys.exit(f"CONFIG-ERROR: max_features must be none or an integer >= 1, got {mf!r}")
+out['max_features'] = mf
 out['created'] = cfg.get('created') or datetime.date.today().isoformat()
 out['n2b_version'] = tpl['n2b_version']
 json.dump(out, open('.n2b/config.json', 'w'), indent=2); open('.n2b/config.json', 'a').write('\n')
@@ -167,7 +171,7 @@ PYEOF
 
 
 What it guarantees:
-- Exactly the seven registered fields, in schema order; `n2b_version` copied from the template, never typed; `created` preserved on rewrite.
+- Exactly the eight registered fields, in schema order; `n2b_version` copied from the template, never typed; `created` preserved on rewrite; `max_features` is `null` (no cap) or a positive integer — `none` clears it.
 - `model_provider` is forced to `inherit` when the profile is `inherit`, and `model_tiers` is all-`null` under `inherit`.
 - Known providers are materialized from the catalog; `generic` keeps previously typed IDs and applies `<tier>=<id>` arguments (an empty value clears a tier to `null`); `inherit` is never written into a tier.
 

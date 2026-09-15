@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Smoke mode: `/n2b:s1-init --smoke [N]` (default N = 3) and `/n2b:config --max-features <N|none>` set a feature cap — `max_features` in `.n2b/config.json` — so the whole pipeline runs end-to-end quickly and cheaply for testing. Stage 2 defines at most N features (core value flow first, at least one Core, the widest spread of spec kinds); both Stage 2 gates enforce the cap with the existing one-retry-then-halt loop, and everything past it is listed under `## Deferral Notes › ### Deferred by feature cap` in `scope-boundaries.md` as `[CAP-DEFERRED]` bullets (SYN-04 accepts either location). Stage 1, 2, and 4 start banners carry a `Capped run` line, Stage 3 appends ` · capped run (max N features)` to its run-count lines, trackers record the cap, and `/n2b:status` shows a `Cap:` line. The cap cannot be changed once Stage 2 is complete. A full run is unchanged (`max_features: null`, now the eighth config field).
+
 ### Changed
 - Stage 3 batch messaging: the Stage 2 hand-off banner now explains that Stage 3 is batched and estimates the run count; every `CHECKPOINT` and `--continue` resume shows a per-pass progress table (`✓ ● ○`), batch X of Y, run R of ~T, and the next pass. The remaining-run estimate now measures Pass B/C against the full feature count (it previously only counted already-analyzed features, undercounting during Pass A).
 - `/n2b:status` between-stages route and the gatekeeper Next-Stage Lookup carry the Stage 3 batch hint.

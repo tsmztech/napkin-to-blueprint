@@ -72,7 +72,7 @@ Verify each concern from the `decomposition-checklists.md` cross-cutting concern
 
 ## Section 5: Evidence-Justified Additions
 
-Feature additions are governed by evidence, not numeric caps. Every feature added during synthesis or audit — `[RESEARCH-SUGGESTED]` and `[AUDIT-ADDED]` alike — must satisfy all four conditions:
+Feature additions are governed by evidence, not numeric caps — unless a feature cap is in force (`max_features`, smoke/test runs): then an addition that would exceed the cap is recorded as a `[CAP-DEFERRED]` bullet in scope-boundaries.md (Section 6, path 3) rather than as a new feature. Every feature added during synthesis or audit — `[RESEARCH-SUGGESTED]` and `[AUDIT-ADDED]` alike — must satisfy all four conditions:
 
 1. **Provenance marker:** the addition carries its marker. Audit-added items use `[AUDIT-ADDED: <audit number> — <rationale>]`; audit-driven exclusions use `[AUDIT-EXCLUDED: <audit number> — <rationale>]`.
 2. **Cited evidence or named audit:** the marker cites the research evidence (with its confidence level) or names the audit procedure that produced the finding.
@@ -82,7 +82,7 @@ Feature additions are governed by evidence, not numeric caps. Every feature adde
 Two boundaries hold regardless of evidence:
 
 - **Scope boundary:** The audit cannot change the product's fundamental scope. It adds missing pieces the vision demands; it does not redefine what the product is.
-- **SYN-04 is absolute:** Features tied to BRIEF.md goals can never be removed, regardless of research confidence level or audit outcome. No addition, exclusion, or reconciliation decision overrides SYN-04.
+- **SYN-04 is absolute:** Features tied to BRIEF.md goals can never be removed, regardless of research confidence level or audit outcome. No addition, exclusion, or reconciliation decision overrides SYN-04. (Under a feature cap, a brief-named feature may be held as a `[CAP-DEFERRED]` bullet instead of a FEAT entry — never dropped.)
 
 ## Section 6: Decision Framework
 
@@ -90,6 +90,6 @@ For each gap found during any audit, three resolution paths:
 
 1. **New feature** — Must satisfy the evidence-justified additions discipline (Section 5): provenance marker, cited evidence or named audit, tier justified in Rationale, vision alignment. Any tier is available, including Core with HIGH-confidence justification.
 2. **New capability in existing feature** — Add a Key Capability (or enrich a Functional Depth field) in the most relevant existing feature.
-3. **Explicit scope exclusion** — Document the exclusion with rationale and provenance marker.
+3. **Explicit scope exclusion** — Document the exclusion with rationale and provenance marker. Under a feature cap (`max_features`), an addition that would exceed the cap takes this path as a `[CAP-DEFERRED]` bullet under `## Deferral Notes › ### Deferred by feature cap`.
 
 Findings fold into the final documents directly — there is no separate audit output document.

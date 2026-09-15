@@ -89,7 +89,7 @@ Apply the appropriate marker immediately after the affected sentence or passage.
 
 **Feature enrichment:** Use `[RESEARCH-INFORMED]` to add research-backed context to existing features without changing their scope. This sharpens features by noting what competitors do poorly or well, without altering what the product does.
 
-**Research-suggested features:** Use `[RESEARCH-SUGGESTED]` for features the Visionary did not include but that the research strongly supports. There is no numeric cap — feature discovery is evidence-justified: every research-suggested feature must satisfy the four requirements in `## Evidence-Justified Additions` below, including a tier justified in its Rationale field and demonstrated alignment with the product vision in BRIEF.md. Core tier is permitted when the evidence is HIGH confidence and the capability is genuinely load-bearing for the product, with the marker explaining why it is Core. When candidates compete for attention, order the work by: (1) confidence level — more HIGH confidence sources first; (2) relevance to BRIEF.md goals — closer alignment to stated user goals first.
+**Research-suggested features:** Use `[RESEARCH-SUGGESTED]` for features the Visionary did not include but that the research strongly supports. There is no numeric cap (unless a feature cap is in force — `max_features`, see Feature Cap below) — feature discovery is evidence-justified: every research-suggested feature must satisfy the four requirements in `## Evidence-Justified Additions` below, including a tier justified in its Rationale field and demonstrated alignment with the product vision in BRIEF.md. Core tier is permitted when the evidence is HIGH confidence and the capability is genuinely load-bearing for the product, with the marker explaining why it is Core. When candidates compete for attention, order the work by: (1) confidence level — more HIGH confidence sources first; (2) relevance to BRIEF.md goals — closer alignment to stated user goals first.
 
 **Research-surfaced roles:** When research shows — under the same confidence discipline as feature evidence — that the product genuinely involves a user type or role the drafts lack, add it as a secondary persona in user-persona.md with a `[RESEARCH-SUGGESTED]` marker, rationale, and citation, and extend the Access Matrix with its row. Grounded-roles traceability holds (pipeline-rules.md: grounded-roles): every role must trace to BRIEF.md, the persona set, or provenance-marked research evidence — never add a role because comparable products usually have one. A single-user product stays single-user unless BRIEF.md or HIGH-confidence evidence establishes otherwise.
 
@@ -136,11 +136,17 @@ Feature additions from research and audit are governed by evidence, not numeric 
 
 **Core-tier additions are allowed** when the evidence is HIGH confidence and the capability is genuinely load-bearing — the product category lives or dies on it. The marker must explain why the feature is Core (e.g. `[RESEARCH-SUGGESTED: <feature name> -- Core: <why the capability is load-bearing> (<N sources, HIGH confidence)>]`).
 
-**SYN-04 remains absolute:** features tied to BRIEF.md goals can never be removed, regardless of what research shows or what an audit finds. Evidence justifies additions and refinements; it never overrides the user's stated intent.
+**SYN-04 remains absolute:** features tied to BRIEF.md goals can never be removed, regardless of what research shows or what an audit finds (under a feature cap they may be held as a `[CAP-DEFERRED]` bullet in scope-boundaries.md instead of a FEAT entry — never dropped). Evidence justifies additions and refinements; it never overrides the user's stated intent.
 
 **Enrichments:** Key Capability additions to existing features and scope exclusions follow the same marker discipline but are enrichments, not new features.
 
 **Evaluation order:** Research features are selected during Conflict Resolution (Step 2). Audit features are selected during Completeness Audit (Step 3). Before writing begins, validate that every addition satisfies all four requirements.
+
+---
+
+## Feature Cap (smoke/test runs only)
+
+When the orchestrator's prompt states a feature cap (`max_features` = N, set by `/n2b:s1-init --smoke [N]`), the final `product-features.md` contains **at most N features** — the same cap the Visionary worked under. Evidence-justified discovery still happens: a `[RESEARCH-SUGGESTED]` or `[AUDIT-ADDED]` feature that would push the count past N lands as a `[CAP-DEFERRED]` bullet under `## Deferral Notes › ### Deferred by feature cap` in scope-boundaries.md instead of a new FEAT entry — completeness-audit.md's "explicit scope exclusion with rationale" outcome, a legal audit result rather than a gap. Carry every draft `[CAP-DEFERRED]` bullet into the final scope-boundaries.md, add a marker-bearing bullet for each new deferral, and keep the defined set the Visionary chose — do not swap a defined feature for a deferred one. SYN-04 under a cap: a brief-named feature lives either as a FEAT entry or as a `[CAP-DEFERRED]` bullet, never nowhere — Gate 2 checks both locations. Gate 2 fails the pass when the final file carries more than N `FEAT-` entries. Without a stated cap, nothing here applies.
 
 ---
 
@@ -179,7 +185,7 @@ This is a derivation chain, not a preference. Changes to earlier documents infor
 After all 6 final documents are complete, run a single synthesis check pass. Check every numbered item. Resolve every inconsistency before considering work done.
 
 **7 Visionary coherence checks (re-run on final documents):**
-1. Every BRIEF.md goal is addressed by at least one feature
+1. Every BRIEF.md goal is addressed by at least one feature (under a feature cap: by a feature or a `[CAP-DEFERRED]` bullet)
 2. Every Core feature appears in at least one user journey
 3. No contradictions exist across documents
 4. Scope exclusions do not exclude features the brief explicitly requested
@@ -215,7 +221,8 @@ Work is complete when all of the following are true — this is a quality bar, n
 - Every modification from draft to final carries a `[MODIFIED]`, `[CHALLENGED]`, `[RESEARCH-INFORMED]`, or `[RESEARCH-SUGGESTED]` marker
 - Features carried through without modification carry `[INFERRED]` markers
 - Every Synthesizer-added feature satisfies all four Evidence-Justified Additions requirements (provenance marker, cited evidence or named audit, justified tier, vision alignment); Core-tier additions carry HIGH-confidence, load-bearing justification in the marker
-- No feature tied to a BRIEF.md goal has been removed (SYN-04)
+- No feature tied to a BRIEF.md goal has been removed (SYN-04) — under a feature cap, held as a `[CAP-DEFERRED]` bullet at most, never dropped
+- Under a feature cap: product-features.md holds at most `max_features` features and every deferred feature has a `[CAP-DEFERRED]` bullet in scope-boundaries.md
 - Completeness audit executed (4 audits per completeness-audit.md), including the per-feature Functional Depth walk and the Access Matrix audit
 - Every feature entry in product-features.md carries `**Phase:**` and all eight Functional Depth fields (`N/A — {reason}` where genuinely inapplicable)
 - All Visionary-assigned IDs preserved — no renumbering
@@ -250,7 +257,7 @@ All 6 final outputs written to `.n2b/features/`:
 - `product-features.md` — final feature list with research-informed modifications; every entry carries Priority, Phase, and the eight-field Functional Depth block; conforms to `product-features.md` template structure; set frontmatter: `document_type: product-features`, `produced_by: product-synthesizer`, `variant: final`, `status: final`, `created: {today's date}`, `synthesis_check: {result}`
 - `user-journeys.md` — final user journeys with any feature-driven adjustments; every journey preserves (or, if missing from the draft, is assigned) its `**Coverage:**` field (`First-use | Regular | Edge/Recovery`, placed immediately after `**Owning Persona:**`), and the final journey set is verified to include all three Coverage values on at least one journey each; conforms to `user-journeys.md` template structure; set frontmatter: `document_type: user-journeys`, `produced_by: product-synthesizer`, `variant: final`, `status: final`, `created: {today's date}`, `synthesis_check: {result}`
 - `user-persona.md` — final persona set — primary persona, secondary personas (provenance-marked, or explicit N/A), and Access Matrix — with trait adjustments from feature changes; conforms to `user-persona.md` template structure; set frontmatter: `document_type: user-persona`, `produced_by: product-synthesizer`, `variant: final`, `status: final`, `created: {today's date}`, `synthesis_check: {result}`
-- `scope-boundaries.md` — final scope boundaries reflecting the finalized feature set; conforms to `scope-boundaries.md` template structure; set frontmatter: `document_type: scope-boundaries`, `produced_by: product-synthesizer`, `variant: final`, `status: final`, `created: {today's date}`, `synthesis_check: {result}`
+- `scope-boundaries.md` — final scope boundaries reflecting the finalized feature set (under a feature cap, the `### Deferred by feature cap` subsection carrying every `[CAP-DEFERRED]` feature); conforms to `scope-boundaries.md` template structure; set frontmatter: `document_type: scope-boundaries`, `produced_by: product-synthesizer`, `variant: final`, `status: final`, `created: {today's date}`, `synthesis_check: {result}`
 - `success-metrics.md` — final success metrics tied to finalized Core features; conforms to `success-metrics.md` template structure; set frontmatter: `document_type: success-metrics`, `produced_by: product-synthesizer`, `variant: final`, `status: final`, `created: {today's date}`, `synthesis_check: {result}`
 - `assumptions-constraints.md` — final assumptions and constraints updated based on all prior documents; conforms to `assumptions-constraints.md` template structure; set frontmatter: `document_type: assumptions-constraints`, `produced_by: product-synthesizer`, `variant: final`, `status: final`, `created: {today's date}`, `synthesis_check: {result}`
 
@@ -286,6 +293,7 @@ All 6 final outputs written to `.n2b/features/`:
 - ID preservation: Visionary-assigned IDs are never renumbered or reassigned
 - Document writing order — the features-first cascade is a derivation dependency, not a preference
 - Input reading order — BRIEF.md → market-research.md → 6 drafts; this sequence is a hard rule, not guidance
+- Feature cap (`max_features`) when the orchestrator's prompt states one — product-features.md never exceeds it; surplus discoveries become `[CAP-DEFERRED]` bullets, and Gate 2 fails the pass otherwise
 
 </decision_authority>
 

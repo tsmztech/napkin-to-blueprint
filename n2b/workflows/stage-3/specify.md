@@ -240,7 +240,13 @@ echo "SPEC_REVIEW=$SPEC_REVIEW"
 DS_SOURCE=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('design_system_source','none'))" 2>/dev/null || echo "none")
 case "$DS_SOURCE" in none|user) ;; *) DS_SOURCE="none" ;; esac
 echo "DS_SOURCE=$DS_SOURCE"
+
+# Feature cap — empty on a full run; Stage 3 only labels a capped run (Stage 2's gates already enforced it)
+MAX_FEATURES=$(python3 -c "import json; v=json.load(open('.n2b/config.json')).get('max_features'); print(v if isinstance(v, int) and v > 0 else '')" 2>/dev/null)
+echo "MAX_FEATURES=${MAX_FEATURES:-unset}"
 ```
+
+`MAX_FEATURES` is a positive integer only on a capped (smoke/test) run — written by `/n2b:s1-init --smoke [N]` or `/n2b:config --max-features N` — and empty on a full run. Stage 3 **never enforces it**: Stage 2's gates did, so `FEATURE_COUNT` is already within the cap, and every batch computation below reads `FEATURE_COUNT` / `features_total` unchanged. It only labels the run, so a reader of the transcript knows why the feature set is small: when set, the start banner's run-count line, the resume summary line, and every `CHECKPOINT` progress heading carry the suffix ` · capped run (max {MAX_FEATURES} features)` (registered wording per ui-brand.md, Status Lines). On a full run the suffix is absent.
 
 **Batch-size resolution (once for this workflow):** the effective `BATCH_SIZE` for this invocation is, in precedence order:
 
@@ -440,10 +446,10 @@ T0=$(( PASSES * RUNS_PER_PASS + 1 ))
 
 ```
   ○  Pass-scoped batched run: one pass per run, up to {BATCH_SIZE} features per batch
-  ○  {FEATURE_COUNT} features → ~{T0} runs at batch size {BATCH_SIZE} — checkpoint + /n2b:s3-specify --continue after every batch
+  ○  {FEATURE_COUNT} features → ~{T0} runs at batch size {BATCH_SIZE}{ · capped run (max {MAX_FEATURES} features)} — checkpoint + /n2b:s3-specify --continue after every batch
 ```
 
-(When `BATCH_SIZE` is `all`, phrase the lines as `one pass per run, all remaining features of that pass per batch` and `{FEATURE_COUNT} features → {T0} runs (one per pass + the final Pass D + Gate A run)`.)
+(When `BATCH_SIZE` is `all`, phrase the lines as `one pass per run, all remaining features of that pass per batch` and `{FEATURE_COUNT} features → {T0} runs (one per pass + the final Pass D + Gate A run)`. The ` · capped run (max {MAX_FEATURES} features)` suffix appears only when `MAX_FEATURES` is set, directly after the batch-size phrase; the run math is unchanged by the cap.)
 
 ### Path B — Resume (STAGE.md `status: in-progress`)
 
@@ -563,7 +569,7 @@ X_NEXT=runs({ANALYZED|SPECCED|REVIEWED of the pass about to run}) + 1   # this r
 Display the resume summary as status lines (no banner — resume is not a registered banner name; the pass about to run displays its own registered pass banner):
 
 ```
-  ✓  Resume {RESUME_N}: {DONE_COUNT}/{FEATURE_COUNT} done — run {R} of ~{T} at batch size {BATCH_SIZE}
+  ✓  Resume {RESUME_N}: {DONE_COUNT}/{FEATURE_COUNT} done — run {R} of ~{T} at batch size {BATCH_SIZE}{ · capped run (max {MAX_FEATURES} features)}
 
   Pass A  analysis   {glyph} {ANALYZED}/{FEATURE_COUNT}{ · {UNANALYZED_COUNT} remaining · {A_RUNS} more run(s)}
   Pass B  specs      {glyph} {SPECCED}/{FEATURE_COUNT}{ · {FEATURE_COUNT - SPECCED} remaining · {B_RUNS} more run(s)}
@@ -579,6 +585,7 @@ Rendering rules:
 - Omit the Pass C row when `SPEC_REVIEW == "self-only"`.
 - When the current pass is the terminal one (all `done`), the `This run` line reads `○  This run: Pass D + Gate A — final run`.
 - Show the `Wiped` line only when `INCOMPLETE_COUNT > 0`.
+- The ` · capped run (max {MAX_FEATURES} features)` suffix on the Resume line appears only when `MAX_FEATURES` is set (Step 1); the counts and run estimate are computed exactly as on a full run.
 - `BATCH_SIZE` is `all` → every `runs()` result is 1 and `X_NEXT` is `1 of 1`.
 - A `--batch` override changes `BATCH_SIZE` for this and later runs, so `X_NEXT`, `Y`, and `T` are recomputed with the current size — the estimate shifts; that is expected. `R` counts completed checkpoints plus this run; an interrupted run that was resumed is not counted.
 
@@ -984,7 +991,7 @@ n2b > CHECKPOINT
   ✓  Checkpoint {N} — Pass {A|B|C} batch {X} of {Y} complete: {batch FEAT-IDs}
      → {landed} in .n2b/specifications/
 
-## Stage 3 progress — run {R} of ~{T} at batch size {BATCH_SIZE}
+## Stage 3 progress — run {R} of ~{T} at batch size {BATCH_SIZE}{ · capped run (max {MAX_FEATURES} features)}
 
   Pass A  analysis   {glyph} {ANALYZED}/{features_total}{ · {UNANALYZED_LEFT} remaining · {A_RUNS} more run(s)}
   Pass B  specs      {glyph} {SPECCED}/{features_total}{ · {features_total - SPECCED} remaining · {B_RUNS} more run(s)}
@@ -1018,6 +1025,7 @@ Rendering rules for the block:
 - `BATCH_SIZE` is `all` → `X`, `X'`, and `Y` are all 1, and every unfinished pass counts 1 more run.
 - A `--batch` override mid-pass changes `BATCH_SIZE`, so `X`, `Y`, and `T` are recomputed with the current size — the estimate shifts; that is expected, not an error. `R` counts completed batch runs; an interrupted run that was resumed is not counted.
 - The banner stays `n2b > CHECKPOINT`; the checkpoint number rides the first status line.
+- The ` · capped run (max {MAX_FEATURES} features)` suffix on the progress heading appears only when `MAX_FEATURES` is set (Step 1). Nothing else in the block changes under a cap — `features_total` is the (already capped) product-features.md count, and the run math is identical.
 
 Then END the invocation. The next `/n2b:s3-specify --continue` re-enters through the gatekeeper (in-progress → resume), Step 1.5 Path B reclassifies from disk truth, and the current-pass table routes to the next batch.
 
@@ -1696,6 +1704,7 @@ Partial output is preserved. Do NOT delete any files that were successfully prod
 - PIPELINE.md Artifact Lineage table populated with per-FEAT-ID spec counts across all five types (e.g., `6 specs (3 Screen, 1 Auto, 1 Logic, 1 Integ, 0 Notif)`)
 - Continuation message: five-type spec-count breakdown, feature count, Stage 4 framed as "recommended architecture plus documented alternatives", /n2b:s4-architect, /clear guidance, Also available
 - All banners use registered ui-brand.md names with the `n2b >` prefix and exactly 40 `━` characters
+- **Capped-run label:** `MAX_FEATURES` read once at Step 1 (`max_features` from config; empty on a full run); when set, the start banner's run-count line, the resume summary line, and every CHECKPOINT progress heading carry ` · capped run (max {N} features)` — and nothing else changes: Stage 3 never enforces the cap (Stage 2's gates did) and all batch math reads `features_total`; on a full run the suffix is absent everywhere
 - No human interaction required at any point after the entry gate — fully autonomous within an invocation; a batch checkpoint ends the invocation cleanly rather than pausing mid-run
 - **Batching arguments:** parsed at Step 0 (`--continue` → CONTINUE_MODE, `--batch N|all` → BATCH_OVERRIDE); batch size resolved at Step 1 (override → recorded frontmatter `batch_size` → default 4) and recorded into STAGE.md frontmatter; `--batch all` = every remaining feature of the CURRENT pass, the pass boundary still checkpoints
 - **Halt-don't-wipe:** bare invocation on an in-progress stage presents the mid-flight modal ([1] Continue [2] Clean restart) and never silently wipes; `--continue` on not-started or complete HALTS with recovery guidance; `--continue` on in-progress/failed resumes without questions

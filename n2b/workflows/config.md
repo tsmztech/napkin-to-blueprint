@@ -1,6 +1,6 @@
 <purpose>
 
-Show or change the pipeline settings in `.n2b/config.json` after Stage 1 has written them. This is the "anytime" companion to `/n2b:status`: it owns every field `config-schema.md` registers as writable after intake — `model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source` — and it is the only way to change them without re-running Stage 1.
+Show or change the pipeline settings in `.n2b/config.json` after Stage 1 has written them. This is the "anytime" companion to `/n2b:status`: it owns every field `config-schema.md` registers as writable after intake — `model_profile`, `model_provider`, `model_tiers`, `spec_review`, `design_system_source`, `max_features` — and it is the only way to change them without re-running Stage 1.
 
 It is programmatic, not judged: flags are parsed and validated, the config is rewritten by the `n2b-model-materializer` script that Stage 1 Step 6.5 also uses, the `n2b-agent-sync` script then pushes the result into the native agent files on runtimes that route that way (OpenCode), and the result is printed back. The interactive path (no flags) asks exactly the questions Stage 1 Step 6.5 asks, runtime-aware, plus the two Stage 1 writes silently (spec review, design system). It never writes a tracking file and never re-runs any stage.
 
@@ -10,7 +10,7 @@ It is programmatic, not judged: flags are parsed and validated, the config is re
 
 Before starting, read these files:
 
-- `.n2b/config.json` — the current settings (may be a legacy five-field file from before `model_provider`/`model_tiers` existed — the materializer upgrades it)
+- `.n2b/config.json` — the current settings (may be a legacy five- or seven-field file from before `model_provider`/`model_tiers` or `max_features` existed — the materializer upgrades it)
 - `n2b/references/config-schema.md` — field owner: allowed values, defaults, readers
 - `n2b/references/model-profiles.md` — the `n2b-model-materializer`, `n2b-model-resolver`, and `n2b-agent-sync` blocks (run verbatim), the Transport Rules, the runtime stamp
 - `n2b/references/model-catalog.json` — providers, tiers, `runtimes.<id>.knownProviders` (data behind the questions)
@@ -57,8 +57,9 @@ Parse the command argument into flags. Accepted, in any order and combination:
 | `--set` | `<tier>=<model-id>` (repeatable) | tier ∈ catalog `tiers`; id non-empty. Implies `--provider generic` unless `--provider` was also given (then it must be `generic`) |
 | `--spec-review` | `independent` \| `self-only` | — |
 | `--design-system` | `none` \| `user` | — |
+| `--max-features` | an integer ≥ 1, or `none` | sets or clears the feature cap (config-schema.md, Feature Cap); refused once Stage 2 is complete — see Step 3 |
 
-Anything else → display the `UNKNOWN FLAG` line `Unknown option: {token}. Usage: /n2b:config [--show] [--profile <p>] [--provider <name>] [--set <tier>=<id>] [--spec-review <v>] [--design-system <v>]` and stop without writing.
+Anything else → display the `UNKNOWN FLAG` line `Unknown option: {token}. Usage: /n2b:config [--show] [--profile <p>] [--provider <name>] [--set <tier>=<id>] [--spec-review <v>] [--design-system <v>] [--max-features <N|none>]` and stop without writing.
 
 Set `MODE`:
 - no tokens at all → `interactive`
@@ -111,6 +112,7 @@ Tiers:          frontier {model or —} · heavy {model or —} · standard {mod
                 {append "· effort {reasoning_effort}" after a tier when the entry has one}
 Spec review:    {spec_review}
 Design system:  {design_system_source}
+Cap:            {"max {max_features} features (smoke run)" when max_features is an integer, else "none (full run)"}
 Configured:     {created} · n2b {n2b_version}
 
 Per-agent models right now ({model_profile}):
@@ -120,7 +122,7 @@ Per-agent models right now ({model_profile}):
 {If model_tiers was absent from the file (legacy config): "⚠ Legacy config (pre-0.3) — shown values are the runtime defaults. Any change below rewrites it into the current shape."}
 {If RUNTIME is opencode: "ℹ OpenCode runs each agent on the `model:` line of .claude/agents/n2b-<role>.md, kept in sync by this command (reinstalling n2b keeps those lines)."}
 
-Change with: /n2b:config --profile <p> · --provider <name> · --set <tier>=<id> · --spec-review <v> · --design-system <v>
+Change with: /n2b:config --profile <p> · --provider <name> · --set <tier>=<id> · --spec-review <v> · --design-system <v> · --max-features <N|none>
 ```
 
 In MODE `show`, stop here. Nothing is written.
@@ -150,8 +152,10 @@ Build the argument list from the flags / answers — only the keys that were giv
 - `--set tier=id` (each) → `tier=id`, and `model_provider=generic` if no `--provider` was given
 - `--spec-review v` → `spec_review=v`
 - `--design-system v` → `design_system_source=v`
+- `--max-features v` → `max_features=v` (`none` clears the cap)
 
 Consistency rules before running (stop with a one-line error, nothing written, when violated):
+- `--max-features` once Stage 2 is complete — read `last_completed_stage` from `.n2b/tracking/PIPELINE.md` frontmatter (`grep '^last_completed_stage:' .n2b/tracking/PIPELINE.md`); when it is `2` or higher → `The feature cap applies when Stage 2 defines the features — Stage 2 is already complete, so it cannot be changed now. Re-run /n2b:s2-define after changing it, or leave it as is.` (a missing PIPELINE.md means Stage 1 has not finished; allow the change).
 - `--set` together with `--provider` other than `generic` → `--set requires --provider generic (or omit --provider)`.
 - `--profile` other than `inherit` while the effective provider is `inherit` on a runtime whose catalog entry has `offerProviderChoice: true` (codex, opencode) and the file's current provider is also `inherit` → `A routed profile needs a provider on this runtime — add --provider <name> or run /n2b:config with no flags` (on `claude` the materializer defaults to `claude-aliases`; on `cursor` any profile is accepted but tiers stay null and the show block says so).
 
@@ -188,6 +192,10 @@ for k, ok in allowed.items():
     v = args.get(k) or cfg.get(k) or tpl[k]
     if v not in ok: sys.exit(f"CONFIG-ERROR: {k} must be one of {list(ok)}, got {v!r}")
     out[k] = v
+mf = args['max_features'] if 'max_features' in args else cfg.get('max_features', tpl['max_features'])
+if isinstance(mf, str): mf = None if mf.strip().lower() in ('', 'none', 'null') else (int(mf) if mf.strip().isdigit() else mf)
+if not (mf is None or (isinstance(mf, int) and not isinstance(mf, bool) and mf >= 1)): sys.exit(f"CONFIG-ERROR: max_features must be none or an integer >= 1, got {mf!r}")
+out['max_features'] = mf
 out['created'] = cfg.get('created') or datetime.date.today().isoformat()
 out['n2b_version'] = tpl['n2b_version']
 json.dump(out, open('.n2b/config.json', 'w'), indent=2); open('.n2b/config.json', 'a').write('\n')
@@ -240,16 +248,18 @@ Then display `✓ Pipeline settings updated` and the Step 1 show block (re-run t
 - profile/provider/tier changed → `Takes effect on the next stage command. Stages already completed are not re-run.`
 - `spec_review` changed while Stage 3 is in progress → `Applies to the next Stage 3 batch (/n2b:s3-specify --continue).`
 - `design_system_source` changed to `user` → `Stage 3 carries .n2b/inputs/design-system/ into the package on its next run.`
+- `max_features` changed → `Applies when Stage 2 defines the features: at most {N} will be carried into the definition (smoke run).` or, when cleared, `Feature cap removed — Stage 2 will define the full feature set.`
 
 </process>
 
 <success_criteria>
 
 - Never writes anything but `.n2b/config.json` (only through the `n2b-model-materializer` block) and, on OpenCode, the `model:` line of `.claude/agents/n2b-*.md` (only through the `n2b-agent-sync` block); never touches `.n2b/tracking/`
-- `--show` prints runtime, the seven fields, and the per-agent resolution from the `n2b-model-resolver` block — the same block every stage workflow runs, so what it shows is what the next stage will do
+- `--show` prints runtime, the eight fields (including the `Cap:` line), and the per-agent resolution from the `n2b-model-resolver` block — the same block every stage workflow runs, so what it shows is what the next stage will do
 - Flags are authoritative and programmatic: parsed, validated against the catalog, applied without any question; unknown flags and invalid values stop the command with one line and no write
 - Bare invocation asks the Stage 1 Step 6.5 questions for this runtime (runtime read from the `n2b-runtime` stamp) plus spec review and design system; cancel = no write
-- The written file always has exactly the seven registered fields in schema order, `n2b_version` from the template, `created` preserved; `inherit` is never written into a tier; a legacy five-field config is upgraded in place
+- The written file always has exactly the eight registered fields in schema order, `n2b_version` from the template, `created` preserved; `inherit` is never written into a tier; a legacy five- or seven-field config is upgraded in place (`max_features` becomes `null`)
+- `--max-features` is validated (integer ≥ 1 or `none`) and refused with one line once Stage 2 is complete — the cap only means something before features are defined
 - Banner uses exactly 40 `━` characters with `n2b > CONFIG` (ui-brand.md)
 
 </success_criteria>

@@ -9,7 +9,7 @@ This workflow coordinates the define pipeline — spawning three sub-agents acro
 
 Pass A runs two agents in parallel: the Product Visionary derives the full product definition from BRIEF.md and produces 6 draft documents; the Market Researcher searches the competitive landscape and produces 1 research document. After Pass A output is validated (Gate 1 — 7 drafts, always), Pass B runs the Product Synthesizer, which reconciles the drafts with market research and produces 6 final documents. Gate 2 validates all 7 final documents (6 synthesized + persisting market research) structurally AND for depth — per-feature Functional Depth fields, entity coverage, journey coverage, metric coverage, and the SYN-04 diff. The orchestrator enforces strict gate-and-advance logic: each pass's output is fully validated before the next pass begins, and failed agents receive exactly one retry before the pipeline halts with a structured failure report.
 
-There is exactly one path through this workflow. Both Pass A agents always spawn, all 7 documents are always produced, and every discovered feature is documented and phased — the blueprint never trims a tier to keep its own output small.
+There is exactly one path through this workflow. Both Pass A agents always spawn, all 7 documents are always produced, and every discovered feature is documented and phased — the blueprint never trims a tier to keep its own output small, unless a feature cap is in force (`max_features` in `.n2b/config.json`, set by `/n2b:s1-init --smoke [N]` for smoke/test runs): then at most N features are defined, every other discovered feature is recorded as a `[CAP-DEFERRED]` bullet in scope-boundaries.md, and both gates fail hard when the count exceeds the cap.
 
 </purpose>
 
@@ -220,7 +220,7 @@ This file is a live tracker while status is in-progress. Once status changes to 
 - Status: pending
 - [ ] 7/7 files exist
 - [ ] Frontmatter valid on all files
-- [ ] Feature count (within range)
+- [ ] Feature count (within the cap, when one is set)
 - [ ] Competitor count (meets minimum 3)
 
 ### Pass 2 — Product Synthesizer
@@ -243,6 +243,7 @@ This file is a live tracker while status is in-progress. Once status changes to 
 - [ ] Metric coverage: ≥1 metric per Core feature
 - [ ] SYN-04 diff: every BRIEF.md feature maps to a FEAT entry
 - [ ] Depth anchors: Access Matrix + Non-Functional Expectations present
+- [ ] Feature cap: final count within max_features; deferred features listed (only when a cap is set)
 
 ## Performance
 | Metric | Value |
@@ -304,12 +305,27 @@ for role, row in cat['roles'].items():
 PYEOF
 ```
 
+**Feature cap (once for this workflow):** read `max_features` from `.n2b/config.json` right after the model resolution. It is a positive integer only on a capped (smoke/test) run — written by `/n2b:s1-init --smoke [N]` or `/n2b:config --max-features N` — and `null` (→ empty here) on a full run:
+
+```bash
+# Feature cap — empty on a full run; every cap code path below is guarded by [ -n "$MAX_FEATURES" ]
+MAX_FEATURES=$(python3 -c "import json; v=json.load(open('.n2b/config.json')).get('max_features'); print(v if isinstance(v, int) and v > 0 else '')" 2>/dev/null)
+echo "MAX_FEATURES=${MAX_FEATURES:-unset}"
+```
+
+`MAX_FEATURES` is used in three places: appended to the Visionary and Synthesizer prompts (Steps 3 and 5), enforced at Gate 1 and Gate 2 (Steps 4 and 6), and reported in the banners and trackers. **When it is set**, record it now under `## Deviations` in s2-define/STAGE.md (replacing `(None so far)`; further Deviations lines append after it):
+
+```
+- **Capped run:** max_features={MAX_FEATURES}
+```
+
 Display the Pass A banner (registered name per ui-brand.md):
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 n2b > PASS A
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{  ○  Capped run — max {MAX_FEATURES} features (smoke test) — only when MAX_FEATURES is set}
 ```
 
 Display the flow diagram:
@@ -339,12 +355,16 @@ Display the flow diagram:
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-2/n2b-visionary.md` and execute your complete task as described. Inputs: `.n2b/BRIEF.md` (founding document — read first per pipeline-rules.md brief-first constraint). Templates at `.claude/n2b/templates/stage-2/`. Output directory: `.n2b/features/drafts/` (already exists). Write all 6 deliverables per your contract's deliverables section. Do not ask for clarification — work autonomously with what is in BRIEF.md.
 
 Depth requirements (the product-features template is the contract):
-- Full tiering: document every feature you discover, across all three tiers — Core, Important, and Nice-to-Have. Include as many features as the product honestly needs, fully tiered and phased. Never fold a discovered feature into scope exclusions to keep the set small — the blueprint documents everything and phases it.
+- Full tiering: document every feature you discover, across all three tiers — Core, Important, and Nice-to-Have. Include as many features as the product honestly needs, fully tiered and phased. Never fold a discovered feature into scope exclusions to keep the set small — the blueprint documents everything and phases it — unless a feature cap is in force (`max_features`).
 - Phase assignment: every feature entry carries a `**Phase:**` field (MVP | v1 | Later) — release phasing, orthogonal to Priority.
 - Functional Depth: every feature entry carries the eight-field Functional Depth block per the product-features template — `**Primary Flows & Alternates:**`, `**States:**`, `**Validation & Limits:**`, `**Access:**`, `**Communications:**`, `**Data Notes:**`, `**Interactions:**`, `**Signals:**`. Where a field genuinely does not apply, write `N/A — {one-sentence reason}` — never leave it blank."
 - Tools: Read, Write, Bash
 - Model: the `visionary` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 55 (6 documents with template reading, per-feature Functional Depth, and phase assignment — generous)
+
+**When `MAX_FEATURES` is set**, append this paragraph to the Visionary prompt, inside the quoted prompt text after the Functional Depth bullet, with `{N}` replaced by `MAX_FEATURES` (omit it entirely on a full run — the prompt is otherwise identical):
+
+> Feature cap in force: define **at most {N} features**. Choose the {N} that (1) close the brief's core value flow end-to-end (the completeness audit's value-flow walk must still hold within the chosen set), (2) include at least one Core feature, and (3) cover the widest spread of feature kinds — prefer a set that will yield a screen-type, an automation/notification-type, and, if the brief names an integration, an integration-type spec, so Stage 3 exercises every spec template. Every other feature the product honestly needs goes to draft-scope-boundaries.md under `## Deferral Notes › ### Deferred by feature cap` as a one-line bullet starting with the `[CAP-DEFERRED]` marker (per the scope-boundaries template), so no discovered capability is silently lost and every open value-flow segment has an explicit deferral. Journeys, the Domain Entity Inventory, the Feature Interaction Summary, `**Interactions:**` fields, the Access Matrix, and success metrics reference the defined features only. Gate 1 fails the pass if draft-product-features.md carries more than {N} `FEAT-` entries.
 
 **Agent 2: Market Researcher** (always spawned)
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-2/n2b-researcher.md` and execute your complete task as described. Inputs: `.n2b/BRIEF.md` (founding document — read first per pipeline-rules.md brief-first constraint). Template at `.claude/n2b/templates/stage-2/market-research.md`. Output: `.n2b/features/market-research.md` (directory already exists). Write your single deliverable per your contract's deliverables section. Do not ask for clarification — work autonomously with what is in BRIEF.md."
@@ -455,7 +475,12 @@ FEATURE_COUNT=$(grep -c '^\*\*ID:\*\* FEAT-' .n2b/features/drafts/draft-product-
 CORE=$(grep -c '^\*\*Priority:\*\* Core' .n2b/features/drafts/draft-product-features.md 2>/dev/null); CORE=${CORE:-0}
 IMPORTANT=$(grep -c '^\*\*Priority:\*\* Important' .n2b/features/drafts/draft-product-features.md 2>/dev/null); IMPORTANT=${IMPORTANT:-0}
 NICE=$(grep -c '^\*\*Priority:\*\* Nice-to-Have' .n2b/features/drafts/draft-product-features.md 2>/dev/null); NICE=${NICE:-0}
+# Feature cap (Step 2) — the draft may never exceed it; inert on a full run
+if [ -n "$MAX_FEATURES" ] && [ "$FEATURE_COUNT" -gt "$MAX_FEATURES" ]; then echo "FEATURE-CAP: FAIL ($FEATURE_COUNT > $MAX_FEATURES)"; else echo "FEATURE-CAP: PASS (${FEATURE_COUNT}${MAX_FEATURES:+ ≤ $MAX_FEATURES})"; fi
+CAP_DEFERRED=$(grep -c '^- \[CAP-DEFERRED\]' .n2b/features/drafts/draft-scope-boundaries.md 2>/dev/null); CAP_DEFERRED=${CAP_DEFERRED:-0}
 ```
+
+`FEATURE-CAP: FAIL` fails the Feature count category for the Visionary — the cap is enforced here, not just requested in the prompt. `CAP_DEFERRED` counts the `[CAP-DEFERRED]` bullets in the draft scope document (informational; 0 on a full run).
 
 For Researcher: count competitor profiles by looking for H3 headings within the Competitive Product Profiles section (heading per the market-research template):
 
@@ -465,7 +490,7 @@ COMPETITOR_COUNT=$(awk '/^## Competitive Product Profiles/,/^## Pricing/{if(/^##
 
 **Visionary status line:**
 ```
-  ✓  Visionary complete — {N} features ({Core} Core, {Important} Important, {Nice-to-Have} Nice-to-Have)
+  ✓  Visionary complete — {N} features ({Core} Core, {Important} Important, {Nice-to-Have} Nice-to-Have){ · cap {MAX_FEATURES}, {CAP_DEFERRED} deferred — only when a cap is set}
 ```
 
 **Researcher status line:**
@@ -475,12 +500,12 @@ COMPETITOR_COUNT=$(awk '/^## Competitive Product Profiles/,/^## Pricing/{if(/^##
 
 (If an agent failed validation, show the status line for the agent that succeeded, and proceed to retry logic for the one that failed.)
 
-**If ANY file fails validation:**
+**If ANY file fails validation, or `FEATURE-CAP` fails:**
 
-1. Identify which agent produced the failing file(s).
+1. Identify which agent produced the failing file(s) (a `FEATURE-CAP` failure is the Visionary's).
 2. Display retry warning: `  ⚠  {Agent} attempt 1 failed — retrying (1/1)...`
-3. Retry ONLY the failed agent with the IDENTICAL prompt and configuration (same prompt text, same tools, same model, same maxTurns — do NOT modify the retry prompt in any way).
-4. After retry, re-validate ONLY the previously-failed files using the same bash checks.
+3. Retry ONLY the failed agent with the IDENTICAL prompt and configuration (same prompt text, same tools, same model, same maxTurns — do NOT modify the retry prompt in any way). The single exception is a `FEATURE-CAP` failure: the retry prompt is the identical prompt (cap paragraph included) plus this appended sentence, with the numbers filled in — `"Your previous run produced {FEATURE_COUNT} features; the cap is {MAX_FEATURES}. Rewrite the drafts with the {MAX_FEATURES} highest-value features (core value flow first) and move the other {FEATURE_COUNT − MAX_FEATURES} to [CAP-DEFERRED] bullets in draft-scope-boundaries.md."`
+4. After retry, re-validate ONLY the previously-failed files using the same bash checks (re-run the cap check after a `FEATURE-CAP` retry).
 5. If retry also fails: execute gate-fail transition (see below) for Gate 1, then HALT.
 
 **If ALL 7 expected files pass validation:**
@@ -492,7 +517,7 @@ Record per-category evidence in s2-define/STAGE.md Steps section (update the exi
 - Status: passed
 - [x] File existence: {N}/7 files exist — {all present or list missing}
 - [x] Frontmatter validity: {N}/7 files have valid frontmatter
-- [x] Feature count: {FEATURE_COUNT} features (FEAT- prefixed entries in draft-product-features.md)
+- [x] Feature count: {FEATURE_COUNT} features (FEAT- prefixed entries in draft-product-features.md){ — within cap {MAX_FEATURES}; {CAP_DEFERRED} deferred by cap — only when a cap is set}
 - [x] Competitor count: {COMPETITOR_COUNT} competitors (H3 headings in Competitive Product Profiles section)
 - Result: **passed**
 ```
@@ -527,7 +552,7 @@ Session Continuity: Last action "Gate 1 — Draft Validation passed", Next actio
 - Status: passed
 - [x] 7/7 files exist
 - [x] Frontmatter valid on all files
-- [x] Feature count (within range)
+- [x] Feature count: {FEATURE_COUNT}{ (cap {MAX_FEATURES}) — only when a cap is set}
 - [x] Competitor count (meets minimum 3)
 ```
 
@@ -563,7 +588,7 @@ Update s2-define/STAGE.md Steps section (update the existing Gate 1 block) with 
 - Result: **failed**
 - [x] File existence: {N}/7 files exist (passed or failed with details)
 - [ ] Frontmatter validity: FAILED — {specific files missing required fields}
-- [ ] Feature count: FAILED — {count, expected range}
+- [ ] Feature count: FAILED — {count; over the cap of {MAX_FEATURES} when a cap is set}
 - [ ] Competitor count: FAILED — {count, expected minimum 3}
 ```
 
@@ -617,12 +642,16 @@ Spawn single agent:
 - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-2/n2b-synthesizer.md` and execute your complete task as described. Inputs: `.n2b/BRIEF.md` (founding document — read first per pipeline-rules.md brief-first constraint), `.n2b/features/market-research.md` (read before drafts — see contract for rationale), all 6 draft files in `.n2b/features/drafts/`. Templates at `.claude/n2b/templates/stage-2/`. Output directory: `.n2b/features/` (already exists). Write all 6 final deliverables per your contract's deliverables section. Do not ask for clarification — work autonomously.
 
 Synthesis requirements:
-- Evidence-justified additions: there are no numeric caps on research-suggested or audit-added features. Every feature you add requires (a) its provenance marker, (b) cited evidence or a named audit, (c) a tier justified in its Rationale, and (d) alignment with the brief's product vision. Core-tier additions are allowed when the evidence is HIGH-confidence and the capability is genuinely load-bearing — the marker must explain why it is Core. SYN-04 remains absolute: features tied to BRIEF.md goals can never be removed.
+- Evidence-justified additions: there are no numeric caps on research-suggested or audit-added features. Every feature you add requires (a) its provenance marker, (b) cited evidence or a named audit, (c) a tier justified in its Rationale, and (d) alignment with the brief's product vision. Core-tier additions are allowed when the evidence is HIGH-confidence and the capability is genuinely load-bearing — the marker must explain why it is Core. SYN-04 remains absolute: features tied to BRIEF.md goals can never be removed (under a feature cap they may be held as a `[CAP-DEFERRED]` bullet in scope-boundaries.md instead of a FEAT entry — never dropped).
 - Functional Depth enrichment: verify and enrich every feature entry's `**Phase:**` field and eight-field Functional Depth block (per the product-features template) during your audits — no feature entry leaves your pass with a missing or blank depth field.
 - Persona set: synthesize user-persona.md as a persona set per its template — the primary persona always; secondary personas/roles only when the brief or research warrants them, each carrying the same provenance discipline as a new feature (marker + rationale + citation, per pipeline-rules.md grounded-roles); include the Access Matrix — it is the source of every feature entry's `**Access:**` field."
 - Tools: Read, Write, Bash
 - Model: the `synthesizer` line of the model resolution output (Step 2), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 65 (8 inputs to read + 6 outputs with depth enrichment and persona-set synthesis + synthesis check)
+
+**When `MAX_FEATURES` is set**, append this paragraph to the Synthesizer prompt, inside the quoted prompt text after the Persona set bullet, with `{N}` replaced by `MAX_FEATURES` (omit it entirely on a full run — the prompt is otherwise identical):
+
+> Feature cap in force: product-features.md must contain **at most {N} features** — the same cap the Visionary worked under. Evidence-justified discovery still happens, but a `[RESEARCH-SUGGESTED]` or `[AUDIT-ADDED]` feature that would push the count past {N} lands as a `[CAP-DEFERRED]` bullet under `## Deferral Notes › ### Deferred by feature cap` in scope-boundaries.md instead of a new FEAT entry (the completeness audit's explicit-scope-exclusion outcome — a legal result, not a gap). Carry every draft `[CAP-DEFERRED]` bullet into the final scope-boundaries.md and keep the defined set the Visionary chose — do not swap a defined feature for a deferred one. SYN-04 under a cap: a brief-named feature lives either as a FEAT entry or as a `[CAP-DEFERRED]` bullet, never nowhere — Gate 2 checks both locations. Gate 2 fails the pass if product-features.md carries more than {N} `FEAT-` entries.
 
 Wait for the agent to complete before proceeding to Step 6.
 
@@ -716,7 +745,13 @@ FEATURE_COUNT=$(grep -c '^\*\*ID:\*\* FEAT-' .n2b/features/product-features.md 2
 CORE=$(grep -c '^\*\*Priority:\*\* Core' .n2b/features/product-features.md 2>/dev/null); CORE=${CORE:-0}
 IMPORTANT=$(grep -c '^\*\*Priority:\*\* Important' .n2b/features/product-features.md 2>/dev/null); IMPORTANT=${IMPORTANT:-0}
 NICE=$(grep -c '^\*\*Priority:\*\* Nice-to-Have' .n2b/features/product-features.md 2>/dev/null); NICE=${NICE:-0}
+# Feature cap (Step 2) — the final file may never exceed it; inert on a full run
+if [ -n "$MAX_FEATURES" ] && [ "$FEATURE_COUNT" -gt "$MAX_FEATURES" ]; then echo "FEATURE-CAP: FAIL ($FEATURE_COUNT > $MAX_FEATURES)"; else echo "FEATURE-CAP: PASS (${FEATURE_COUNT}${MAX_FEATURES:+ ≤ $MAX_FEATURES})"; fi
+CAP_DEFERRED=$(grep -c '^- \[CAP-DEFERRED\]' .n2b/features/scope-boundaries.md 2>/dev/null); CAP_DEFERRED=${CAP_DEFERRED:-0}
+[ -n "$MAX_FEATURES" ] && echo "CAP-DEFERRED: $CAP_DEFERRED features deferred by cap"
 ```
+
+`FEATURE-CAP: FAIL` fails the Feature cap category. The `CAP-DEFERRED` line is informational — it is carried into the tracker and the completion message, never a pass/fail condition.
 
 ### Gate 2 Checks — Depth
 
@@ -796,12 +831,16 @@ while IFS= read -r BF; do
   [ -z "$BF" ] && continue
   BF_NAME=$(echo "$BF" | sed 's/:[ ]*$//; s/^ *//; s/ *$//')
   SYN04_TOTAL=$((SYN04_TOTAL + 1))
-  grep -qiF "$BF_NAME" .n2b/features/product-features.md || SYN04_UNMATCHED="$SYN04_UNMATCHED {$BF_NAME}"
+  grep -qiF "$BF_NAME" .n2b/features/product-features.md \
+    || { [ -n "$MAX_FEATURES" ] && grep '^- \[CAP-DEFERRED\]' .n2b/features/scope-boundaries.md | grep -qiF "$BF_NAME"; } \
+    || SYN04_UNMATCHED="$SYN04_UNMATCHED {$BF_NAME}"
 done <<EOF
 $BRIEF_FEATURES
 EOF
-[ -z "$SYN04_UNMATCHED" ] && echo "SYN-04: PASS ($SYN04_TOTAL BRIEF.md feature bullets all map to FEAT entries)" || echo "SYN-04: UNMATCHED —$SYN04_UNMATCHED"
+[ -z "$SYN04_UNMATCHED" ] && echo "SYN-04: PASS ($SYN04_TOTAL BRIEF.md feature bullets all map to FEAT entries${MAX_FEATURES:+ or [CAP-DEFERRED] bullets})" || echo "SYN-04: UNMATCHED —$SYN04_UNMATCHED"
 ```
+
+- Under a feature cap, a brief-named feature may legitimately live as a `[CAP-DEFERRED]` bullet in scope-boundaries.md — the second location is checked only when `MAX_FEATURES` is set, so the widening is inert on a full run (which never writes that marker).
 
 - If the extraction yields zero bullets (`SYN04_TOTAL = 0`): the brief carries no explicit feature bullets — record `SYN-04: PASS (no explicit feature bullets in BRIEF.md; user intent expressed as narrative, protected by the Synthesizer's SYN-04 rule and audited via markers)` and treat the category as passed.
 - If any name is `UNMATCHED`: before failing, resolve renames — a BRIEF.md feature the Synthesizer or Visionary renamed must carry a `[MODIFIED]` marker on its FEAT entry documenting the original intent. For each unmatched name, search product-features.md for a marker-documented FEAT entry covering it and record the mapping (`"{brief name}" → FEAT-XX {new name}`) as evidence. Any brief feature with neither a literal match nor a marker-documented mapping fails the category — a user-stated feature was dropped.
@@ -818,7 +857,7 @@ grep -q '^## Non-Functional Expectations' .n2b/features/assumptions-constraints.
 **If ANY Gate 2 category fails (structural or depth):**
 
 1. Display retry warning: `  ⚠  Synthesizer attempt 1 failed — retrying (1/1)...`
-2. Retry Synthesizer with the IDENTICAL prompt and configuration (same prompt text, same tools, same model, same maxTurns — do NOT modify the retry prompt in any way).
+2. Retry Synthesizer with the IDENTICAL prompt and configuration (same prompt text, same tools, same model, same maxTurns — do NOT modify the retry prompt in any way). The single exception is a `FEATURE-CAP` failure: the retry prompt is the identical prompt (cap paragraph included) plus this appended sentence, with the numbers filled in — `"Your previous run produced {FEATURE_COUNT} features; the cap is {MAX_FEATURES}. Move the lowest-value {FEATURE_COUNT − MAX_FEATURES} to [CAP-DEFERRED] bullets in scope-boundaries.md and rewrite the finals against the remaining set."`
 3. After retry, re-run ALL Gate 2 checks (structure + depth).
 4. If any check still fails: execute gate-fail transition for Gate 2 (see below), then HALT.
 
@@ -834,8 +873,9 @@ grep -q '^## Non-Functional Expectations' .n2b/features/assumptions-constraints.
 - [x] Entity coverage: {ENTITY_COUNT}/{ENTITY_COUNT} inventory entities appear in ≥1 Connected Entities line
 - [x] Journey coverage: {JOURNEY_COUNT} journeys (minimum {JOURNEY_MIN}); first-use + regular + edge present
 - [x] Metric coverage: all {CORE} Core features have ≥1 metric line
-- [x] SYN-04 diff: {SYN04_TOTAL} BRIEF.md feature bullets each map to a FEAT entry — {evidence, incl. any marker-documented rename mappings}
+- [x] SYN-04 diff: {SYN04_TOTAL} BRIEF.md feature bullets each map to a FEAT entry (or, under a cap, a [CAP-DEFERRED] bullet) — {evidence, incl. any marker-documented rename mappings}
 - [x] Depth anchors: ## Access Matrix present in user-persona.md; ## Non-Functional Expectations present in assumptions-constraints.md
+{- [x] Feature cap: {FEATURE_COUNT} ≤ {MAX_FEATURES}; {CAP_DEFERRED} features deferred by cap ([CAP-DEFERRED] bullets in scope-boundaries.md) — only when a cap is set}
 - Result: **passed**
 ```
 
@@ -882,6 +922,7 @@ Update s2-define/STAGE.md Steps section (update the existing Gate 2 block) with 
 - [ ] Metric coverage: FAILED — {Core FEAT-IDs without a metric line}
 - [ ] SYN-04 diff: FAILED — {which BRIEF.md features have no FEAT entry or marker-documented mapping}
 - [ ] Depth anchors: FAILED — {Access Matrix and/or Non-Functional Expectations missing}
+- [ ] Feature cap: FAILED — {FEATURE_COUNT} > {MAX_FEATURES} (only when a cap is set)
 ```
 
 (Mark `[x]` for passed categories, `[ ]` for failed categories)
@@ -951,7 +992,7 @@ Update the Output section:
 
 ```
 ## Output
-- .n2b/features/product-features.md — {document_type value} ({FEATURE_COUNT} features: {CORE} Core, {IMPORTANT} Important, {NICE} Nice-to-Have)
+- .n2b/features/product-features.md — {document_type value} ({FEATURE_COUNT} features: {CORE} Core, {IMPORTANT} Important, {NICE} Nice-to-Have){; capped at {MAX_FEATURES}, {CAP_DEFERRED} deferred — only when a cap is set}
 - .n2b/features/user-persona.md — {document_type value}
 - .n2b/features/user-journeys.md — {document_type value}
 - .n2b/features/scope-boundaries.md — {document_type value}
@@ -975,7 +1016,7 @@ last_updated: {current ISO timestamp}
 ```
 
 Update PIPELINE.md body:
-- Stage 2 checklist line: change `- [ ]` to `- [x]`, remove `← ACTIVE`, append: `— Completed {date} | {FEATURE_COUNT} features, 2 gates passed`
+- Stage 2 checklist line: change `- [ ]` to `- [x]`, remove `← ACTIVE`, append: `— Completed {date} | {FEATURE_COUNT} features, 2 gates passed` — and, when a cap is set, ` (capped at {MAX_FEATURES}; {CAP_DEFERRED} deferred)`
 - Add `← NEXT` to the Stage 3 checklist line
 - Add Stage History entry for Stage 2:
 
@@ -984,7 +1025,7 @@ Update PIPELINE.md body:
 - Completed: {current ISO timestamp}
 - Gate 1 (drafts): passed ({N}/7 files, frontmatter valid)
 - Gate 2 (finals): passed ({N}/7 files, {MOD_COUNT} modification markers, depth checks passed)
-- Output: .n2b/features/ (7 documents)
+- Output: .n2b/features/ (7 documents){ — capped run: max {MAX_FEATURES} features, {CAP_DEFERRED} deferred by cap — only when a cap is set}
 - Detail: → .n2b/tracking/stages/s2-define/STAGE.md
 - Performance: 3 agents, {duration} min, {retries} retries
 ```
@@ -1046,7 +1087,7 @@ last_updated: {current ISO timestamp}
 
 Update STATE.md body:
 - Current Position: "Between stages. Awaiting next stage command."
-- Accumulated Context: carry forward the full-tier feature count — {FEATURE_COUNT} features: {CORE} Core, {IMPORTANT} Important, {NICE} Nice-to-Have. Also carry forward core domain entities from product-features.md. Remove step-level progress counts — those are in s2-define/STAGE.md permanently.
+- Accumulated Context: carry forward the full-tier feature count — {FEATURE_COUNT} features: {CORE} Core, {IMPORTANT} Important, {NICE} Nice-to-Have — and, when a cap is set, `Capped run: max_features={MAX_FEATURES}; {CAP_DEFERRED} deferred by cap`. Also carry forward core domain entities from product-features.md. Remove step-level progress counts — those are in s2-define/STAGE.md permanently.
 - Session Continuity: Last action "Stage 2 Gate 2 passed", Next action "/n2b:s3-specify", Blockers "None"
 
 Apply 50–80 line trim rules per tracking-protocol.md: remove step-level progress counts, keep only cross-stage context that future stages will need.
@@ -1073,6 +1114,7 @@ echo "S3_RUNS=$S3_RUNS"
 ## ✓ Stage 2: Define Features Complete
 
 {FEATURE_COUNT} features defined ({CORE} Core, {IMPORTANT} Important, {NICE} Nice-to-Have) across 7 documents
+{Capped run — max {MAX_FEATURES} features; {CAP_DEFERRED} deferred by cap (see scope-boundaries.md › Deferred by feature cap) — only when a cap is set}
 
 ---
 
@@ -1109,7 +1151,8 @@ PIPE-06 is satisfied by the entire workflow design: no human questioning calls a
 - Output directories `.n2b/features/` and `.n2b/features/drafts/` created before agents are spawned
 - Visionary and Researcher always spawned in parallel — there is exactly one path through the workflow, no mode branches
 - Visionary prompt carries the depth requirements: full tiering across all three tiers, `**Phase:**` per feature, and the eight-field Functional Depth block per feature
-- Synthesizer prompt carries the synthesis requirements: evidence-justified additions with no numeric caps, Functional Depth enrichment, and persona-set synthesis with the Access Matrix
+- Synthesizer prompt carries the synthesis requirements: evidence-justified additions with no numeric caps (the feature cap, when set, is the one exception), Functional Depth enrichment, and persona-set synthesis with the Access Matrix
+- Feature cap honoured end-to-end when `max_features` is set: `MAX_FEATURES` read once in Step 2 and recorded under Deviations; the cap paragraph appended to both the Visionary and Synthesizer prompts; `FEATURE-CAP` enforced at Gate 1 (drafts) and Gate 2 (finals) with the one-retry-then-halt loop and the cap-specific retry sentence; SYN-04 accepting a `[CAP-DEFERRED]` bullet as a legitimate home for a brief-named feature; the cap and deferred count shown in the Pass A banner, the Visionary status line, both trackers, STATE.md, and the completion message. When `max_features` is null nothing changes: every cap code path is guarded by `[ -n "$MAX_FEATURES" ]`
 - Gate 1 validates all 7 draft-pass files (6 drafts + market-research.md) before Synthesizer is spawned
 - Gate 2 validates all 7 final files structurally AND runs the six depth checks (Functional Depth fields, entity coverage, journey coverage, metric coverage, scripted SYN-04 diff, Access Matrix + Non-Functional Expectations anchors)
 - Each failed agent retried exactly once with identical prompt and configuration

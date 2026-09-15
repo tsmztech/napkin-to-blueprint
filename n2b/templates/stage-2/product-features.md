@@ -21,7 +21,7 @@ created: {YYYY-MM-DD}
   - [Final only] Mark research-driven changes inline: [RESEARCH-INFORMED] or [MODIFIED]
   - Before writing, update all frontmatter fields: produced_by (your agent name), variant (draft or final), status, created (today's date)
   - Each feature entry must include an ID field (FEAT-XX) as the first field after the heading — see id-prefixes.md for format
-  - Each feature entry must include a Phase field (MVP | v1 | Later) — release phasing, orthogonal to Priority; every discovered feature is documented and phased, never trimmed
+  - Each feature entry must include a Phase field (MVP | v1 | Later) — release phasing, orthogonal to Priority; every discovered feature is documented and phased, never trimmed (under a feature cap — max_features, smoke/test runs — the surplus is documented as [CAP-DEFERRED] bullets in scope-boundaries.md, and this file holds at most the capped count)
   - Each feature entry must include a Type field: User-Facing | Platform | Lifecycle
   - Each feature entry must include Connected Entities listing domain objects this feature creates, reads, updates, or manages (with CRUD annotation)
   - Each feature entry must include Key Capabilities as a bullet list of distinct user actions (each capability = one thing the user can do)
@@ -38,7 +38,10 @@ created: {YYYY-MM-DD}
 {Total feature count and breakdown by priority tier, by phase, and by type. Entity count.
 2-3 sentences stating how many features are Core, Important, and Nice-to-Have,
 how many land in MVP, v1, and Later, how many are User-Facing, Platform, and
-Lifecycle, and how many domain entities the product manages.}
+Lifecycle, and how many domain entities the product manages.
+When a feature cap (max_features) is in force, add one sentence: "Capped run: {defined} of
+{defined + deferred} discovered features defined; {deferred} deferred by cap — see
+scope-boundaries.md › Deferred by feature cap." Omit it on a full run.}
 
 <!-- EXAMPLE (meal tracker brief):
 This product includes 8 features: 3 Core, 3 Important, 2 Nice-to-Have.
@@ -46,6 +49,13 @@ By phase: 5 MVP, 2 v1, 1 Later. By type: 6 User-Facing, 1 Platform, 1 Lifecycle.
 The product manages 4 domain entities. Core features cover the daily logging loop;
 Important features support habit review and personalization; Nice-to-Have features
 provide motivation and social context.
+END EXAMPLE -->
+
+<!-- EXAMPLE (same brief, --smoke 3):
+This product defines 3 features: 2 Core, 1 Important, 0 Nice-to-Have.
+By phase: 3 MVP. By type: 3 User-Facing. The product manages 2 domain entities.
+Capped run: 3 of 8 discovered features defined; 5 deferred by cap — see
+scope-boundaries.md › Deferred by feature cap.
 END EXAMPLE -->
 
 ## Domain Entity Inventory
