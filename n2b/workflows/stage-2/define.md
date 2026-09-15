@@ -1055,6 +1055,18 @@ Apply 50–80 line trim rules per tracking-protocol.md: remove step-level progre
 
 After completing Steps 7.1–7.3, display this message to the user. Use the FEATURE_COUNT, CORE, IMPORTANT, NICE variables computed during Gate 2 validation — do NOT re-read product-features.md.
 
+First compute the Stage 3 run estimate for the hand-off hint. Stage 3 runs one pass per invocation for at most `batch_size` features (default 4) and always ends with one terminal Pass D + Gate A run; Pass C is skipped when `spec_review` is `self-only`:
+
+```bash
+# Stage 3 run estimate for the hand-off hint. 4 mirrors the Stage 3 default batch size
+# (n2b/workflows/stage-3/specify.md, Step 1 batch-size resolution) — keep the two in sync.
+SPEC_REVIEW=$(python3 -c "import json; print(json.load(open('.n2b/config.json')).get('spec_review','independent'))" 2>/dev/null || echo "independent")
+case "$SPEC_REVIEW" in self-only) S3_PASSES=2 ;; *) S3_PASSES=3 ;; esac
+S3_BATCH_DEFAULT=4
+S3_RUNS=$(( S3_PASSES * ( (FEATURE_COUNT + S3_BATCH_DEFAULT - 1) / S3_BATCH_DEFAULT ) + 1 ))
+echo "S3_RUNS=$S3_RUNS"
+```
+
 ```
 ---
 
@@ -1071,6 +1083,13 @@ After completing Steps 7.1–7.3, display this message to the user. Use the FEAT
 `/n2b:s3-specify`
 
 *(`/clear` first → fresh context window)*
+
+Stage 3 runs in **batches** to fit provider quota windows: each run handles one pass
+(analysis → specs → review) for up to 4 features, then stops at a checkpoint.
+With {FEATURE_COUNT} features, expect ~{S3_RUNS} runs at the default batch size.
+
+- `/n2b:s3-specify --continue` — resume after each checkpoint (`/clear` first each time)
+- `/n2b:s3-specify --batch N` / `--batch all` — bigger batches, or a whole pass per run, if your quota allows
 
 ---
 
@@ -1099,7 +1118,7 @@ PIPE-06 is satisfied by the entire workflow design: no human questioning calls a
 - s2-define/STAGE.md sealed as permanent receipt with status: complete, all checkboxes ticked, Gate 1 + Gate 2 evidence (including depth-check evidence), and output manifest
 - PIPELINE.md shows Stage 2 as checked with Stage History entry and Artifact Lineage rows for every FEAT-ID
 - All banners use registered ui-brand.md names with the `n2b >` prefix and exactly 40 `━` characters
-- Continuation message shows the full-tier feature breakdown (Core, Important, Nice-to-Have), /n2b:s3-specify, /clear guidance, and Also available
+- Continuation message shows the full-tier feature breakdown (Core, Important, Nice-to-Have), /n2b:s3-specify, /clear guidance, the Stage 3 batch hint with the estimated run count (`S3_RUNS`) and the `--continue` / `--batch` forms, and Also available
 - No human interaction required at any point — fully autonomous, zero pauses
 
 </success_criteria>

@@ -61,7 +61,7 @@ Used by both the gatekeeper (to route on error) and the status workflow (to show
 |------------------|-----------------|--------------|
 | `0` (none) | 1 | `/n2b:s1-init` |
 | `1` | 2 | `/n2b:s2-define` |
-| `2` | 3 | `/n2b:s3-specify` |
+| `2` | 3 | `/n2b:s3-specify` — batched: one pass per run, checkpoint after every batch; resume with `/n2b:s3-specify --continue` |
 | `3` | 4 | `/n2b:s4-architect` |
 | `4` | 5 (optional) | `/n2b:s5-export` — blueprint complete; export is an offer, not a requirement |
 | `5` | 5 (repeatable) | `/n2b:s5-export` — add another target or refresh an existing one, any time |

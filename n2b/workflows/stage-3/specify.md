@@ -27,7 +27,7 @@ The user re-invokes with `/n2b:s3-specify --continue` (in a fresh context window
 <required_reading>
 
 Before starting, read:
-- `.claude/n2b/references/ui-brand.md` — banner format (40 `━` characters, `n2b > {BANNER NAME}` prefix), the registered banner names, and status symbols (`✓` = complete, `○` = pending/in-progress)
+- `.claude/n2b/references/ui-brand.md` — banner format (40 `━` characters, `n2b > {BANNER NAME}` prefix), the registered banner names, and status symbols (`✓` = complete, `○` = pending/in-progress, `●` = in progress (progress rows))
 - `.claude/n2b/references/tracking-protocol.md` — all transition types; follow them as a checklist at each state change
 - `.claude/n2b/references/pipeline-gatekeeper.md` — entry gate (Check 1-3 flow, error formats, stage registry)
 - `.claude/n2b/references/model-profiles.md` — model routing: the `n2b-model-resolver` block, the rendered role table, and the per-runtime Transport Rules (data: `.claude/n2b/references/model-catalog.json` and `.n2b/config.json` `model_tiers`)
@@ -429,13 +429,21 @@ n2b > PASS A
 
 When `SPEC_REVIEW == "self-only"`, append ` (skipped — spec_review: self-only)` to the Pass C line of the diagram.
 
-After the diagram, display the batch plan line:
+After the diagram, project the run count and display the batch plan lines. `FEATURE_COUNT` is the product-features.md count from Step 1.5 Path A; `PASSES` is 3 (`independent`) or 2 (`self-only`); `runs(n)` is `ceil(n / BATCH_SIZE)`, or 1 when `BATCH_SIZE` is `all`:
+
+```bash
+# T0 = total runs at this batch size: one batch run per pass per batch, + 1 terminal (Pass D + Gate A)
+case "$SPEC_REVIEW" in self-only) PASSES=2 ;; *) PASSES=3 ;; esac
+if [ "$BATCH_SIZE" = "all" ]; then RUNS_PER_PASS=1; else RUNS_PER_PASS=$(( (FEATURE_COUNT + BATCH_SIZE - 1) / BATCH_SIZE )); fi
+T0=$(( PASSES * RUNS_PER_PASS + 1 ))
+```
 
 ```
-  ○  Pass-scoped batched run: one pass per invocation, up to {BATCH_SIZE} features per batch — checkpoint + /n2b:s3-specify --continue after every batch
+  ○  Pass-scoped batched run: one pass per run, up to {BATCH_SIZE} features per batch
+  ○  {FEATURE_COUNT} features → ~{T0} runs at batch size {BATCH_SIZE} — checkpoint + /n2b:s3-specify --continue after every batch
 ```
 
-(When `BATCH_SIZE` is `all`, phrase it as `one pass per invocation, all remaining features of that pass per batch`.)
+(When `BATCH_SIZE` is `all`, phrase the lines as `one pass per run, all remaining features of that pass per batch` and `{FEATURE_COUNT} features → {T0} runs (one per pass + the final Pass D + Gate A run)`.)
 
 ### Path B — Resume (STAGE.md `status: in-progress`)
 
@@ -535,12 +543,44 @@ After classifying all features and before spawning agents:
 **Update STATE.md body only:**
 - `## Session Continuity`: Last action: "Stage 3 resumed — classified per-feature state", Next action: "Pass {A|B|C|D} — next batch", Blockers: "None"
 
+Derive the run position from the classification counts (same formulas as Step 4.75, with `checkpoints` read from the STAGE.md frontmatter — not incremented here; the run about to happen is counted inside `REMAINING`):
+
+```bash
+# Per-pass completed counts — measured against FEATURE_COUNT, not against tracker-scoped counts
+ANALYZED=$(( FEATURE_COUNT - UNANALYZED_COUNT ))
+SPECCED=$(( REVIEW_PENDING_COUNT + DONE_COUNT ))   # self-only: DONE_COUNT (REVIEW_PENDING_COUNT is 0)
+REVIEWED=$DONE_COUNT                               # independent only
+# runs(n) = 0 when n=0; 1 when BATCH_SIZE=all; else ceil(n / BATCH_SIZE)
+A_RUNS=runs(UNANALYZED_COUNT); B_RUNS=runs(FEATURE_COUNT - SPECCED); C_RUNS=runs(FEATURE_COUNT - REVIEWED)   # C_RUNS=0 in self-only
+REMAINING=$(( A_RUNS + B_RUNS + C_RUNS + 1 ))      # +1 = terminal Pass D + Gate A run (this run, when everything is done)
+N={checkpoints from STAGE.md frontmatter}
+R=$(( N + 1 ))                                     # this run
+T=$(( N + REMAINING ))
+Y=runs(FEATURE_COUNT)                              # batches per pass
+X_NEXT=runs({ANALYZED|SPECCED|REVIEWED of the pass about to run}) + 1   # this run's batch position within its pass
+```
+
 Display the resume summary as status lines (no banner — resume is not a registered banner name; the pass about to run displays its own registered pass banner):
 
 ```
-  ✓  Resume {RESUME_N}: {DONE_COUNT}/{FEATURE_COUNT} done, {REVIEW_PENDING_COUNT} review-pending, {ANALYZED_COUNT + INCOMPLETE_COUNT} awaiting specs, {UNANALYZED_COUNT} awaiting analysis
-  ○  Wiped {INCOMPLETE_COUNT} partial features for re-spec — current pass: Pass {A|B|C|D}
+  ✓  Resume {RESUME_N}: {DONE_COUNT}/{FEATURE_COUNT} done — run {R} of ~{T} at batch size {BATCH_SIZE}
+
+  Pass A  analysis   {glyph} {ANALYZED}/{FEATURE_COUNT}{ · {UNANALYZED_COUNT} remaining · {A_RUNS} more run(s)}
+  Pass B  specs      {glyph} {SPECCED}/{FEATURE_COUNT}{ · {FEATURE_COUNT - SPECCED} remaining · {B_RUNS} more run(s)}
+  Pass C  review     {glyph} {REVIEWED}/{FEATURE_COUNT}{ · {FEATURE_COUNT - REVIEWED} remaining · {C_RUNS} more run(s)}
+  Pass D  reconcile  ○  final run + Gate A
+
+  ○  This run: Pass {A|B|C} — batch {X_NEXT} of {Y}
+  ○  Wiped {INCOMPLETE_COUNT} partial features for re-spec
 ```
+
+Rendering rules:
+- Row glyph: count equals `FEATURE_COUNT` → `✓`; between 0 and `FEATURE_COUNT` → `●`; 0 → `○`. The ` · … remaining · … more run(s)` suffix appears only while the row is not complete.
+- Omit the Pass C row when `SPEC_REVIEW == "self-only"`.
+- When the current pass is the terminal one (all `done`), the `This run` line reads `○  This run: Pass D + Gate A — final run`.
+- Show the `Wiped` line only when `INCOMPLETE_COUNT > 0`.
+- `BATCH_SIZE` is `all` → every `runs()` result is 1 and `X_NEXT` is `1 of 1`.
+- A `--batch` override changes `BATCH_SIZE` for this and later runs, so `X_NEXT`, `Y`, and `T` are recomputed with the current size — the estimate shifts; that is expected. `R` counts completed checkpoints plus this run; an interrupted run that was resumed is not counted.
 
 ---
 
@@ -912,14 +952,28 @@ UNANALYZED_LEFT={features with no tracker}
 SPECS_LEFT={trackers awaiting specs (status not-started, or in-progress with incomplete specs)}
 REVIEW_LEFT={trackers review-pending}   # always 0 in self-only mode
 DONE_TOTAL={trackers status done}
-# Remaining invocations ≈ ceil of each per-pass count / BATCH_SIZE, + 1 terminal (Pass D + Gate A)
+# Per-pass completed counts — trackers exist only for analyzed features, so Pass B/C
+# remaining is measured against features_total, NOT against SPECS_LEFT / REVIEW_LEFT
+# (those undercount while Pass A is still running).
+ANALYZED=$(( features_total - UNANALYZED_LEFT ))
+SPECCED=$(( REVIEW_LEFT + DONE_TOTAL ))          # self-only: DONE_TOTAL (REVIEW_LEFT is 0)
+REVIEWED=$DONE_TOTAL                              # independent only
+# runs(n) = 0 when n=0; 1 when BATCH_SIZE=all; else ceil(n / BATCH_SIZE)
+A_RUNS=runs(UNANALYZED_LEFT); B_RUNS=runs(features_total - SPECCED); C_RUNS=runs(features_total - REVIEWED)   # C_RUNS=0 in self-only
+REMAINING=$(( A_RUNS + B_RUNS + C_RUNS + 1 ))     # +1 = terminal Pass D + Gate A run
+R=$checkpoints                                    # after this checkpoint's increment (item 1 below) — completed batch runs incl. this one
+T=$(( R + REMAINING ))
+Y=runs(features_total)                            # batches per pass — every pass covers all features
+X=runs({ANALYZED|SPECCED|REVIEWED of the pass just completed})   # this batch's position within its pass
 ```
+
+`REMAINING` is the `~… more run(s)` figure written to STATE.md in item 3 below and shown in the checkpoint block; both come from this one derivation.
 
 Execute the `batch-checkpoint` transition from tracking-protocol.md and STOP this invocation cleanly — do not start another pass, do not run Gate A, do not fire any other transition. In order:
 
 1. **s3-specify/STAGE.md** — frontmatter: `checkpoints: {N}` (increment by 1). `current_pass` keeps the value the pass's step-complete set (the pass the next invocation runs). Body: append to the Steps section: `- [x] Checkpoint {N} (Pass {A|B|C} batch): {batch FEAT-IDs} — {pass-scoped progress, e.g. "12/27 analyzed" | "8/27 specced" | "4/27 reviewed"} ({timestamp})`. The Feature Progress table is already current from per-feature updates. `status` stays `in-progress` — the receipt write-lock does not begin at a checkpoint.
 2. **PIPELINE.md** — `last_updated: {timestamp}` only. `active_stage` stays `3`, `pipeline_status` stays `running` — a checkpoint is deliberately the same pipeline state an interrupted run leaves, so every resume path (gatekeeper, status routing) already handles it.
-3. **STATE.md** — frontmatter: `current_step: checkpoint`, `last_updated: {timestamp}`. Body: `## Current Position`: "Stage 3 — Create Specifications / Checkpoint {N} after a Pass {A|B|C} batch — {DONE_TOTAL}/{features_total} features done. Remaining: {UNANALYZED_LEFT} to analyze, {SPECS_LEFT} to spec, {REVIEW_LEFT} to review (~{remaining invocations incl. terminal} more run(s) at batch size {BATCH_SIZE})". `## Session Continuity`: Last action: "Checkpoint {N} — Pass {A|B|C} batch {batch FEAT-IDs}", Next action: "/n2b:s3-specify --continue", Blockers: "None".
+3. **STATE.md** — frontmatter: `current_step: checkpoint`, `last_updated: {timestamp}`. Body: `## Current Position`: "Stage 3 — Create Specifications / Checkpoint {N} after a Pass {A|B|C} batch — {DONE_TOTAL}/{features_total} features done. Remaining: {UNANALYZED_LEFT} to analyze, {SPECS_LEFT} to spec, {REVIEW_LEFT} to review (~{REMAINING} more run(s) at batch size {BATCH_SIZE})". `## Session Continuity`: Last action: "Checkpoint {N} — Pass {A|B|C} batch {batch FEAT-IDs}", Next action: "/n2b:s3-specify --continue", Blockers: "None".
 4. **Display the checkpoint block** (CHECKPOINT is a registered ui-brand banner):
 
 ```
@@ -927,14 +981,21 @@ Execute the `batch-checkpoint` transition from tracking-protocol.md and STOP thi
 n2b > CHECKPOINT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ✓  Pass {A|B|C} batch complete — {batch FEAT-IDs}
-  ✓  Stage progress: {analyzed total}/{features_total} analyzed · {specced total}/{features_total} specced · {DONE_TOTAL}/{features_total} done
+  ✓  Checkpoint {N} — Pass {A|B|C} batch {X} of {Y} complete: {batch FEAT-IDs}
+     → {landed} in .n2b/specifications/
+
+## Stage 3 progress — run {R} of ~{T} at batch size {BATCH_SIZE}
+
+  Pass A  analysis   {glyph} {ANALYZED}/{features_total}{ · {UNANALYZED_LEFT} remaining · {A_RUNS} more run(s)}
+  Pass B  specs      {glyph} {SPECCED}/{features_total}{ · {features_total - SPECCED} remaining · {B_RUNS} more run(s)}
+  Pass C  review     {glyph} {REVIEWED}/{features_total}{ · {features_total - REVIEWED} remaining · {C_RUNS} more run(s)}
+  Pass D  reconcile  ○  final run + Gate A
 
 ---
 
 ## ▶ Next Up
 
-**Pass {next pass letter} — {count for that pass} feature(s) awaiting {analysis|specs|review}** (~{remaining invocations incl. terminal} more run(s) at batch size {BATCH_SIZE}, including the final Pass D + Gate A run)
+**Pass {next} — batch {X'} of {Y}** — {count} feature(s) awaiting {analysis|specs|review}
 
 `/n2b:s3-specify --continue`
 
@@ -948,7 +1009,15 @@ n2b > CHECKPOINT
 ---
 ```
 
-(When the next invocation is the terminal one — everything `done` — phrase Next Up as: `**Pass D + Gate A — final run** — reconciliation, structural validation, and stage completion`.)
+Rendering rules for the block:
+- `{landed}` names what this batch wrote: Pass A → `feature folders + feature-overview.md briefs + trackers` (append `, dependency map` on the first Pass A batch); Pass B → `specs + self-review`; Pass C → `reviews (+ revisions)`.
+- Row glyph: count equals `features_total` → `✓`; between 0 and `features_total` → `●`; 0 → `○`. The ` · … remaining · … more run(s)` suffix appears only while the row is not complete.
+- Omit the Pass C row when `SPEC_REVIEW == "self-only"`.
+- Next pass: A if `UNANALYZED_LEFT > 0`; else B if `features_total - SPECCED > 0`; else C if `independent` and `features_total - REVIEWED > 0`; else terminal. `{count}` is that pass's remaining count; `X'` = `runs(completed count of that pass) + 1`. Do NOT name the next batch's FEAT-IDs — batch selection belongs to the pass steps.
+- When the next invocation is the terminal one — everything `done` — phrase Next Up as: `**Pass D + Gate A — final run** — reconciliation, structural validation, and stage completion`.
+- `BATCH_SIZE` is `all` → `X`, `X'`, and `Y` are all 1, and every unfinished pass counts 1 more run.
+- A `--batch` override mid-pass changes `BATCH_SIZE`, so `X`, `Y`, and `T` are recomputed with the current size — the estimate shifts; that is expected, not an error. `R` counts completed batch runs; an interrupted run that was resumed is not counted.
+- The banner stays `n2b > CHECKPOINT`; the checkpoint number rides the first status line.
 
 Then END the invocation. The next `/n2b:s3-specify --continue` re-enters through the gatekeeper (in-progress → resume), Step 1.5 Path B reclassifies from disk truth, and the current-pass table routes to the next batch.
 
@@ -1606,7 +1675,7 @@ Partial output is preserved. Do NOT delete any files that were successfully prod
 - Full STAGE.md body skeleton written at stage-start with the four-pass Steps list (Pass A — Analysis / Pass B — Specification (includes self-review) / Pass C — Quality Review (spec_review: independent) / Pass D — Reconciliation), Feature Progress empty, Gates pending, Performance with dashes
 - **Pass-scoped invocations:** every invocation runs exactly one pass for at most BATCH_SIZE features; an invocation never spans a pass boundary — completing a pass's final batch still checkpoints and ends the invocation; the only checkpoint-free invocation is the terminal one (all features `done` → Pass D + Gate A + stage-complete); there is NO single-invocation path for any project size
 - **Current-pass derivation** (Step 1.5): classified fresh from disk truth every invocation over the FULL feature list from product-features.md — unanalyzed (no folder/tracker; invalid-Brief folders wiped) → Pass A; analyzed/wiped-incomplete → Pass B; review-pending → Pass C; all done → terminal; passes strictly sequential; trackers missing against a valid Brief are recreated from the Brief; nothing persisted about pass position beyond `current_pass` (informational)
-- stage-resume classifies per-feature FEAT-NN-{slug}.md files: done features skipped; in `independent` mode, in-progress features with all expected specs on disk are review-pending (specs preserved, review re-run only); other in-progress features wiped for re-spec; increments `resumed` counter in STAGE.md frontmatter
+- stage-resume classifies per-feature FEAT-NN-{slug}.md files: done features skipped; in `independent` mode, in-progress features with all expected specs on disk are review-pending (specs preserved, review re-run only); other in-progress features wiped for re-spec; increments `resumed` counter in STAGE.md frontmatter; displays the same per-pass progress table (`✓ ● ○`, run R of ~T) and `This run: Pass {X} — batch {X'} of {Y}` line before the pass banner
 - **Pass A batching** (Step 3): batch selected from unanalyzed features by product-features.md `**Priority:**` tier (Core → Important → Nice-to-Have, numeric within tier); `features_total` set from product-features.md count on the first Pass A invocation; Architect spawned batch-scoped (feature-scope list in prompt; dependency map built only when absent, covering ALL features; External Touchpoints full coverage check only on the FINAL_A_BATCH prompt); per-feature trackers created per-analyst for the batch; Pass A checkbox ticks only when every feature has a tracker
 - Per-feature FEAT-NN-{slug}.md files created per-analyst during Pass A batch result processing — written to `.n2b/tracking/stages/s3-specify/` using the feature-tracker.md template shape; each contains feature ID, feature_name, `status: not-started`, `specs_expected: {N}`, `specs_written: 0`, `quality_passed: false`, and Specs checkbox list
 - Pass A architect prompt carries the context-package requirements (C-14 Functional Depth fields + Phase, C-15 Access Matrix slice, C-16 NFR/Dependencies slices, C-17 journey coverage, success-metrics slice), the dependency-map requirements (External Touchpoints + Contention/Data Sensitivity), and the extended Brief validation (Roles Touched, six frontmatter counts); maxTurns 150
@@ -1614,7 +1683,7 @@ Partial output is preserved. Do NOT delete any files that were successfully prod
 - Producer Phase 2.5 self-review runs in BOTH spec_review modes
 - In `self-only` mode: producer completion sets tracker `status: done`, `quality_passed: true`, dashboard Quality `self-only`; Pass C never runs as an invocation; the terminal invocation annotates the Pass C checkbox as skipped
 - **Pass C batching** (Step 4.5): runs only when all features have specs and some are review-pending; batch in numeric FEAT order; reviewers spawned in parallel (maxTurns 70); must-fix findings route ONE producer revision re-spawn (max 1 revision cycle per feature, maxTurns 120) then one re-review; Quality column lands `reviewed: pass` or `reviewed: pass-after-revision`; features with must-fix findings still outstanding after the cycle fail the stage (gate-fail with `stage-3-pass-c-failed`, `--continue` re-reviews them)
-- **Checkpoint gate** (Step 4.75): fires after EVERY pass batch — `batch-checkpoint` transition (STAGE.md checkpoints+1 + pass-labeled Steps entry, PIPELINE.md last_updated only — stays `running`/`active_stage: 3`, STATE.md `current_step: checkpoint` + pass-scoped Current Position + `--continue` Next action) + CHECKPOINT banner block with per-pass remaining workload and estimated runs, then END the invocation
+- **Checkpoint gate** (Step 4.75): fires after EVERY pass batch — `batch-checkpoint` transition (STAGE.md checkpoints+1 + pass-labeled Steps entry, PIPELINE.md last_updated only — stays `running`/`active_stage: 3`, STATE.md `current_step: checkpoint` + pass-scoped Current Position + `--continue` Next action) + CHECKPOINT banner block with checkpoint number + batch X of Y, per-pass progress table (`✓ ● ○`, remaining features and runs per pass, Pass B/C remaining measured against `features_total`), run R of ~T, and Next Up naming the next pass and batch position (count only, never FEAT-IDs), then END the invocation
 - **Pass checkbox discipline under batching:** Pass A / B / C checkboxes tick only in the invocation where the last feature clears that pass; per-feature truth lives in the trackers and Feature Progress table
 - Terminal invocation (Step 5): Pass D skipped on resume if already ticked; reconciler prompt covers all five spec types, External Touchpoints ↔ Integration consistency, Notification trigger sources, Degradation Behavior screen references, and the Check 14 platform-parameter sweep (markers → platform-parameters.md with non-binding proposed defaults; file skipped only when zero markers exist — contract C-36); maxTurns 90; step-complete after Pass D ticks `- [x] Pass D — Reconciliation`, advances STATE.md current_step to gate-a
 - gate-check transition: STATE.md stage_status: gate-check, STAGE.md Gates section begins recording per-category evidence

@@ -112,7 +112,7 @@ n2b > {BANNER NAME}
 
 | Banner | When |
 |--------|------|
-| `CHECKPOINT` | A Stage 3 pass batch completes (every Pass A/B/C batch ends here — only the terminal Pass D + Gate A invocation is checkpoint-free); the block shows pass-scoped progress, per-pass remaining workload, and the `/n2b:s3-specify --continue` instruction |
+| `CHECKPOINT` | A Stage 3 pass batch completes (every Pass A/B/C batch ends here — only the terminal Pass D + Gate A invocation is checkpoint-free); the block shows the checkpoint number and batch position, a per-pass progress table (`✓ ● ○`) with remaining runs, the run-of-total estimate, and the `/n2b:s3-specify --continue` instruction |
 
 ### Handoff & Export — Stage 4 completion, Stage 5
 
@@ -197,6 +197,7 @@ takes it from here.
 |--------|---------|
 | `✓` | Complete / passed |
 | `○` | Pending / in progress |
+| `●` | In progress — partially complete (Stage 3 per-pass progress rows only) |
 | `✗` | Failed / missing |
 | `⚠` | Warning / retry |
 
