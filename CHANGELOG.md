@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-15
+
 ### Added
 - Smoke mode: `/n2b:s1-init --smoke [N]` (default N = 3) and `/n2b:config --max-features <N|none>` set a feature cap — `max_features` in `.n2b/config.json` — so the whole pipeline runs end-to-end quickly and cheaply for testing. Stage 2 defines at most N features (core value flow first, at least one Core, the widest spread of spec kinds); both Stage 2 gates enforce the cap with the existing one-retry-then-halt loop, and everything past it is listed under `## Deferral Notes › ### Deferred by feature cap` in `scope-boundaries.md` as `[CAP-DEFERRED]` bullets (SYN-04 accepts either location). Stage 1, 2, and 4 start banners carry a `Capped run` line, Stage 3 appends ` · capped run (max N features)` to its run-count lines, trackers record the cap, and `/n2b:status` shows a `Cap:` line. The cap cannot be changed once Stage 2 is complete. A full run is unchanged (`max_features: null`, now the eighth config field).
 
@@ -56,7 +58,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Initial release: five-stage pipeline (`/n2b:s1-init`, `/n2b:s2-define`, `/n2b:s3-specify`, `/n2b:s4-architect`, `/n2b:s5-export`) plus `/n2b:status`, for Claude Code.
 - Stage 5 export targets including dev-brief, Jira, Spec Kit, and vibe-coding packs.
 
-[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tsmztech/napkin-to-blueprint/releases/tag/v0.1.0

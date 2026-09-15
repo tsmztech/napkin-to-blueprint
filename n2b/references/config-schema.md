@@ -19,7 +19,7 @@ This document is the single owner of the `.n2b/config.json` schema. Every field 
 | `design_system_source` | string | `none` \| `user` | `none` | Stage 1 Step 6.5, `/n2b:config --design-system` | Stage 3 passthrough step and Gate A Category 5 — `user` carries the files found in `.n2b/inputs/design-system/` verbatim into the package at `.n2b/specifications/design-system/` (see Design-System Intake below); `none` means the package ships design-agnostic (no design-system output exists). n2b never generates a design system. |
 | `max_features` | integer \| null | `null` (no cap) or an integer ≥ 1 | `null` | Stage 1 Step 6.5 (from the `--smoke [N]` intake flag), `/n2b:config --max-features <N\|none>` | Stage 1 Path D (feature proposals), Stage 2 (Visionary prompt, Gate 1, Gate 2 — the cap bites where features are born, see Feature Cap below), Stage 3 / Stage 4 banners, `/n2b:status` and `/n2b:config --show` (`Cap:` line). `null` means today's uncapped behaviour, byte for byte. |
 | `created` | string | ISO date `YYYY-MM-DD` | today's date at instantiation | Stage 1 Step 6.5 (preserved by `/n2b:config`) | Informational/provenance — records when the pipeline was configured. |
-| `n2b_version` | string | semver | the template's value (currently `0.3.0`) | Stage 1 Step 6.5 and `/n2b:config` (copied from the template by the materializer — never typed from memory) | Informational/provenance — records which engine version produced the blueprint package. |
+| `n2b_version` | string | semver | the template's value (currently `0.4.0`) | Stage 1 Step 6.5 and `/n2b:config` (copied from the template by the materializer — never typed from memory) | Informational/provenance — records which engine version produced the blueprint package. |
 
 ## Missing/Invalid Handling
 
