@@ -6,8 +6,6 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![works with Claude Code · Cursor · OpenCode · Codex (experimental)](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20OpenCode%20%C2%B7%20Codex%20(experimental)-d97757)](#quickstart)
 
-<!-- DEMO GIF: 90-second terminal recording (idea in → blueprint + exports out) goes here -->
-
 **n2b** runs inside your AI coding agent — [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com). You describe the idea; a pipeline of specialized agents interviews you, researches the market, matures the idea into a complete product definition with implementation-ready feature specs, and pairs it with a recommended technical architecture. The result is a structured handoff package that any development team or AI coding tool can build from directly.
 
 n2b **deliberately does not build the product.** The blueprint is the deliverable — the input *to* a build, not the build.
@@ -93,9 +91,9 @@ n2b sits *upstream* of the popular spec-driven tools — it works with them, not
 
 ### Stage 1 — Intake · `/n2b:s1-init`
 
-**What you do:** have a conversation. n2b interviews you about your idea — vision, problem, target users, the experience you imagine, business context, scale expectations, integrations, constraints. It asks until it's confident, not until a form is filled; vague answers get follow-ups, and it tells you what it still doesn't understand. Already have notes or a brief? Paste them or point n2b at the file — it reads them first, only asks about what's missing, and keeps the original under `.n2b/inputs/source/` so nothing you wrote is lost.
+**What you do:** have a conversation. n2b interviews you about your idea — vision, problem, target users, the experience you imagine, business context, scale expectations, integrations, constraints. It asks until it's confident, not until a form is filled; vague answers get follow-ups, and it tells you what it still doesn't understand. Hard boundaries — timeline, budget, regulations, systems it must work with, hosting or technology commitments — are captured here as constraints; this is the only stage that asks about them, and Stage 4 designs against them later. Already have notes or a brief? Paste them or point n2b at the file — it reads them first, only asks about what's missing, and keeps the original under `.n2b/inputs/source/` so nothing you wrote is lost.
 
-**What you get:** `.n2b/BRIEF.md` — a validated, structured project brief — plus pipeline tracking in `.n2b/tracking/`.
+**What you get:** `.n2b/BRIEF.md` — a validated, structured project brief — plus `.n2b/config.json` (the pipeline settings, changeable later with `/n2b:config`) and pipeline tracking in `.n2b/tracking/`.
 
 **Your effort:** this is the stage where *you* do the talking. Everything after it is largely autonomous.
 
@@ -124,13 +122,13 @@ At the default batch size expect roughly three runs per four features plus one f
 
 The final run reconciles every cross-reference and ID, then holds the output to a hard quality gate.
 
-**What you get:** `.n2b/specifications/` — per-feature specs, a feature dependency map, and a platform-parameters registry.
+**What you get:** `.n2b/specifications/` — per-feature specs, a feature dependency map, and a reconciliation log; plus a platform-parameters registry when any spec flags one, and your design system carried in verbatim if you supplied one.
 
 ### Stage 4 — Architect · `/n2b:s4-architect`
 
-**What you do:** run the command; answer a short technical-profile questionnaire (deployment expectations, team skills, budget posture — "no preference" is a valid answer everywhere).
+**What you do:** run the command. There is nothing to answer — Stage 4 is fully autonomous. The technical posture it designs against comes from the constraints you gave in Stage 1 and from the specs themselves.
 
-**What happens:** a technical researcher does live web research across the current technology landscape, then planner and architect agents produce a feasibility analysis, a **recommended architecture with documented alternatives and trade-offs** (stack, services, databases, APIs, hosting, auth — nothing artificially constrained), and a production-grade database schema.
+**What happens:** a profile analyst extracts a quantified technical profile from the Stage 3 specs; a technical researcher surveys the current technology landscape (web-first, with any knowledge-based fallback marked as such); then feasibility-planner, architect, and schema-designer agents produce a per-feature feasibility analysis, a **recommended architecture with documented alternatives and trade-offs** (stack, services, databases, APIs, hosting, auth — nothing artificially constrained), and a production-grade database schema.
 
 **What you get:** `.n2b/architecture/` — five architecture documents. When the stage passes its gate, the pipeline reports **blueprint complete**: your `.n2b/` folder now *is* the handoff package.
 
@@ -212,7 +210,7 @@ node bin/install.js --claude --target /path/to/test/project   # install a local 
 npm test                                                       # installer tests, incl. Claude Code byte-identity
 ```
 
-Everything is Markdown — commands, workflows, agents, and templates are all `.md` files. After editing source, re-run the installer before testing; to exercise every stage end-to-end without a full-size run, start the test project with `/n2b:s1-init --smoke` (see Quickstart). Claude Code output is a verbatim copy of source and is pinned by `test/fixtures/claude-baseline.json`; after an intentional source change, refresh it with `node test/install.test.js --update-baseline`.
+Everything is Markdown — commands, workflows, agents, and templates are all `.md` files — apart from two JSON data files, `n2b/references/model-catalog.json` (model routing) and `n2b/templates/config.json` (the settings template). After editing source, re-run the installer before testing; to exercise every stage end-to-end without a full-size run, start the test project with `/n2b:s1-init --smoke` (see Quickstart). Claude Code output is a verbatim copy of source and is pinned by `test/fixtures/claude-baseline.json`; after an intentional source change, refresh it with `node test/install.test.js --update-baseline`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development loop and PR checklist, [CHANGELOG.md](CHANGELOG.md) for release notes, and [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
