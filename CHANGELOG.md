@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Changed
+- Codex is no longer labelled experimental: the `(experimental)` tag is gone from the README badge, runtime tables, requirements, and `--help`, along with the "not yet verified live" notes on Codex and OpenCode; the `.agents/skills/` troubleshooting tip stays.
 - README accuracy pass: the Stage 4 walkthrough no longer claims a technical-profile questionnaire — the stage is fully autonomous (the profile is extracted from the Stage 3 specs, and hosting/budget/technology boundaries are captured in Stage 1 as constraints); Stage 4 names all five passes; Stage 1 lists `.n2b/config.json` as an output; Stage 3 lists the reconciliation log, the conditional platform-parameters registry, and the design-system passthrough; the demo-GIF placeholder is gone.
 
 ## [0.4.0] - 2026-09-15
