@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/napkin-to-blueprint)](https://www.npmjs.com/package/napkin-to-blueprint)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![works with Claude Code · Cursor · OpenCode · Codex (experimental)](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20OpenCode%20%C2%B7%20Codex%20(experimental)-d97757)](#quickstart)
+[![works with Claude Code · Cursor · OpenCode · Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20OpenCode%20%C2%B7%20Codex-d97757)](#quickstart)
 
 **n2b** runs inside your AI coding agent — [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com). You describe the idea; a pipeline of specialized agents interviews you, researches the market, matures the idea into a complete product definition with implementation-ready feature specs, and pairs it with a recommended technical architecture. The result is a structured handoff package that any development team or AI coding tool can build from directly.
 
@@ -33,7 +33,7 @@ Flags combine (`--claude --cursor`). Installs are project-local: n2b's commands,
 | Runtime | Installed to | Start here | Next stages |
 |---------|--------------|------------|-------------|
 | Claude Code | `./.claude/` | `/n2b:s1-init` | `/n2b:s2-define` … `/n2b:status` |
-| Codex *(experimental)* | `./.codex/` | `$n2b-s1-init` | `$n2b-s2-define` … `$n2b-status` |
+| Codex | `./.codex/` | `$n2b-s1-init` | `$n2b-s2-define` … `$n2b-status` |
 | OpenCode | `./.opencode/` (commands + `agents/n2b-*.md`) | `/n2b-s1-init` | `/n2b-s2-define` … `/n2b-status` |
 | Cursor | `./.cursor/` | `/n2b-s1-init` (or mention `n2b-s1-init`) | `/n2b-s2-define` … `/n2b-status` |
 
@@ -177,7 +177,7 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 
 ## Requirements
 
-- One of: [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex) (CLI ≥ 0.130.0 — earlier versions can list skills twice; **experimental**: not yet verified against a live Codex CLI, and Codex's current docs list `.agents/skills/` as the project skill root rather than `.codex/skills/` — if `$n2b-*` does not appear, try `mv .codex/skills .agents/skills` and [report it](https://github.com/tsmztech/napkin-to-blueprint/issues)), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com)
+- One of: [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex) (CLI ≥ 0.130.0 — earlier versions can list skills twice; skills install to `.codex/skills/` — if your Codex build looks for `.agents/skills/` instead and `$n2b-*` does not appear, `mv .codex/skills .agents/skills` and [report it](https://github.com/tsmztech/napkin-to-blueprint/issues)), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com)
 - Node.js ≥ 16 (used only by the installer — zero npm dependencies)
 
 **Model profiles per runtime.** Stage 1 asks once which model profile to use — `balanced`, `quality`, `budget`, or `inherit` (no routing; every agent uses the session model) — and each profile assigns one of four tiers (`frontier`, `heavy`, `standard`, `light`) to each of n2b's 16 agent roles. Tiers become real models through a **provider** whose IDs are written into `.n2b/config.json` from `n2b/references/model-catalog.json`:
@@ -185,8 +185,8 @@ n2b never generates a design system. If you have one, drop it into `.n2b/inputs/
 | Runtime | Asked at Stage 1 | Providers | Applied at spawn |
 |---|---|---|---|
 | Claude Code | profile | `claude-aliases` (`fable` / `opus` / `sonnet` / `haiku` tier aliases — never stale) | yes — the Agent tool's `model` parameter |
-| Codex *(experimental)* | notice, profile (Inherit recommended if unsure), provider | `openai` (gpt-5.6 sol / terra / luna with reasoning effort) or custom IDs | only when the host's `spawn_agent` exposes a `model` field; otherwise agents run on the session model. Not yet verified live |
-| OpenCode | notice, profile, provider | `anthropic`, `openai`, or custom IDs | yes — the installer emits one native agent file per n2b role (`.opencode/agents/n2b-<role>.md`) and Stage 1 / `/n2b-config` write each role's model into its `model:` line, which reinstalls preserve. Not yet verified live |
+| Codex | notice, profile (Inherit recommended if unsure), provider | `openai` (gpt-5.6 sol / terra / luna with reasoning effort) or custom IDs | only when the host's `spawn_agent` exposes a `model` field; otherwise agents run on the session model |
+| OpenCode | notice, profile, provider | `anthropic`, `openai`, or custom IDs | yes — the installer emits one native agent file per n2b role (`.opencode/agents/n2b-<role>.md`) and Stage 1 / `/n2b-config` write each role's model into its `model:` line, which reinstalls preserve |
 | Cursor | not asked | — | never — Cursor's configured model applies to every agent |
 
 `/n2b:config` changes any of this later. `/n2b:status` shows the current setting.

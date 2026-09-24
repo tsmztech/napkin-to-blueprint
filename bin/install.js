@@ -115,7 +115,7 @@ runtime flag an interactive picker appears (Claude Code is used when no
 terminal is attached).
 
   --claude        Claude Code  → <dir>/.claude/
-  --codex         Codex        → <dir>/.codex/   (experimental)
+  --codex         Codex        → <dir>/.codex/
   --opencode      OpenCode     → <dir>/.opencode/  (commands + agents/n2b-*.md)
   --cursor        Cursor       → <dir>/.cursor/
   --all           all four runtimes
