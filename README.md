@@ -6,6 +6,8 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![works with Claude Code · Cursor · OpenCode · Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20OpenCode%20%C2%B7%20Codex-d97757)](#quickstart)
 
+<a href="https://napkintoblueprint.com"><img src="assets/n2b-banner.svg" width="100%" alt="n2b pipeline: a raw idea on a napkin goes through five stages inside your AI coding agent — 1 Intake (interview → BRIEF.md), 2 Define (research, personas → features/), 3 Specify (per-feature specs → specifications/), 4 Architect (stack + DB schema → architecture/) — each passing a quality gate, to a complete blueprint in .n2b/. Optional Stage 5 Export renders it for AI app builders (Lovable, v0, Bolt, Replit), AI coding agents (Cursor, Codex, Devin), spec-driven kits (Spec Kit, Task Master, BMAD), issue trackers (Jira, backlog.json), or your dev team. n2b covers the planning half of your project timeline, between idea and build."></a>
+
 **n2b** runs inside your AI coding agent — [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex), [OpenCode](https://opencode.ai), or [Cursor](https://cursor.com). You describe the idea; a pipeline of specialized agents interviews you, researches the market, matures the idea into a complete product definition with implementation-ready feature specs, and pairs it with a recommended technical architecture. The result is a structured handoff package that any development team or AI coding tool can build from directly.
 
 n2b **deliberately does not build the product.** The blueprint is the deliverable — the input *to* a build, not the build.
@@ -45,23 +47,7 @@ From there, each stage tells you the exact next command when it finishes. To upd
 
 ## How it works
 
-Five slash commands, run in order, inside your project:
-
-```mermaid
-flowchart LR
-    A(["💡 Idea"]) --> S1["1 · Intake"]
-    S1 --> S2["2 · Define"]
-    S2 --> S3["3 · Specify"]
-    S3 --> S4["4 · Architect"]
-    S4 --> B{{"✓ Blueprint complete"}}
-    B --> S5["5 · Export<br/>(optional, repeatable)"]
-    S5 --> T1["Dev team brief"]
-    S5 --> T2["Jira / any tracker"]
-    S5 --> T3["Cursor · Devin · Codex"]
-    S5 --> T4["GitHub Spec Kit"]
-    S5 --> T5["Task Master · BMAD"]
-    S5 --> T6["Lovable · v0 · Bolt · Replit"]
-```
+Five slash commands, run in order, inside your project — the pipeline pictured at the top of this page.
 
 Stages 1–3 mature the **product**: what it is, who it's for, and every feature specified in depth. Stage 4 rides on top of the finished features and answers **"how could this be built?"** — a recommended architecture plus documented alternatives, chosen on merit from the full landscape of modern cloud, SaaS, and API options. Stage 5 renders the finished blueprint for whichever tool or team will consume it.
 
