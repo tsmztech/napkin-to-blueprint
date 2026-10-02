@@ -118,9 +118,10 @@ After writing ALL specs for the feature, perform a structured quality review cov
 - Integration specs: Degradation Behavior covers provider slow, down, and rejects for every affected screen by spec ID
 - Notification specs: delivery failure, retry, and expiry behavior defined; opt-out/preference and quiet-hours states have defined behavior
 
-**Category 6 — Acceptance Criteria Testability:**
+**Category 6 — Acceptance Criteria Shape & Testability:**
+- **Shape (mechanical -- Stage 5 parses it):** every criterion is exactly one line, `**FEAT-NN.SPEC-NNN-AC-NN:** Given {context}, when {action}, then {outcome}.` -- lowercase `when`/`then`, a literal `, then` present, `given` and `then` non-empty (`when` may be folded into the Given). One scenario per criterion: a line that needs a second action and outcome is two criteria. Never wrap a criterion. `acceptance_criteria_count` equals the number of AC lines; IDs are unique and prefixed by this spec's `spec_id`. The workflow greps for this the moment you return, and Gate A fails the stage on any miss.
 - Each Given/When/Then criterion has a specific, observable outcome
-- Given conditions are reproducible, When actions are concrete, Then outcomes are verifiable
+- Given conditions are reproducible, when actions are concrete, then outcomes are verifiable
 - Persona name is used in criteria; where behavior differs by role, criteria name the role
 
 **Category 7 — Ambiguity Scan:**

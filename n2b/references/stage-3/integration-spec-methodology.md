@@ -96,7 +96,7 @@ Fill the spec-integration.md template and verify completeness.
 Complete all frontmatter fields with accurate values (spec_type: integration).
 
 **Step 2: Write Acceptance Criteria.**
-Cover every product behavior, every inbound event x consequence, every degradation path per affected screen, and every disclosure moment with at least one Given/When/Then criterion. Ground all criteria in the persona: "Given Sarah is viewing an open invoice..."
+Cover every product behavior, every inbound event x consequence, every degradation path per affected screen, and every disclosure moment with at least one Given/When/Then criterion. Ground all criteria in the persona: "Given Sarah is viewing an open invoice..." Write each criterion as exactly one line in the pinned shape -- `**FEAT-NN.SPEC-NNN-AC-NN:** Given {context}, when {action}, then {outcome}.` with lowercase when/then and a literal ", then" -- one scenario per criterion; Stage 5 parses this shape and Gate A rejects any other.
 
 **Step 3: Build Coverage Summary Table.**
 Tally: Product Behaviors, Inbound Events, Degradation Paths, Consent and Disclosure, Edge Cases.

@@ -137,7 +137,7 @@ Fill the spec-screen.md template with all content produced in Phases 2-4.
 Complete all frontmatter fields with accurate values. Count acceptance criteria after writing them.
 
 **Step 2: Write Acceptance Criteria.**
-For each interaction, write at least one Given/When/Then criterion. For every non-default state (empty, error, loading), write at least one criterion. For every business rule, write at least one criterion.
+For each interaction, write at least one Given/When/Then criterion. For every non-default state (empty, error, loading), write at least one criterion. For every business rule, write at least one criterion. Write each criterion as exactly one line in the pinned shape -- `**FEAT-NN.SPEC-NNN-AC-NN:** Given {context}, when {action}, then {outcome}.` with lowercase when/then and a literal ", then" -- one scenario per criterion; Stage 5 parses this shape and Gate A rejects any other.
 
 Ground all criteria in the persona: use the persona's name (e.g., "Given Sarah is on the contact create screen..."), and name the role where behavior differs by role.
 

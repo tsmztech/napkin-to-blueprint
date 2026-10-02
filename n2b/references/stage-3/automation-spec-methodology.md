@@ -169,12 +169,12 @@ Fill the spec-automation.md template and verify completeness.
 Complete all frontmatter fields with accurate values.
 
 **Step 2: Write Acceptance Criteria.**
-Cover every trigger path x outcome path combination with at least one Given/When/Then criterion. This discipline applies to every trigger category, including external-event triggers: every inbound event this automation handles must appear in at least one criterion per outcome it can produce.
+Cover every trigger path x outcome path combination with at least one Given/When/Then criterion. This discipline applies to every trigger category, including external-event triggers: every inbound event this automation handles must appear in at least one criterion per outcome it can produce. Write each criterion as exactly one line in the pinned shape -- `**FEAT-NN.SPEC-NNN-AC-NN:** Given {context}, when {action}, then {outcome}.` with lowercase when/then and a literal ", then" -- one scenario per criterion; Stage 5 parses this shape and Gate A rejects any other.
 
 Ground all criteria in the persona: "Given Sarah has just saved a new contact..."
 
 For automations, acceptance criteria often follow the pattern:
-- "Given [trigger condition], When [trigger fires], Then [processing occurs] and [outcome is visible]"
+- "Given [trigger condition], when [trigger fires], then [processing occurs] and [outcome is visible]"
 
 **Step 3: Build Coverage Summary Table.**
 Tally: Trigger paths covered, Outcome paths covered, Business Rules covered, Edge Cases covered.

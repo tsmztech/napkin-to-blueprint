@@ -111,7 +111,7 @@ If no Critical or High findings: report states PASS with summary of Medium/Low f
 **Can decide autonomously:**
 - Severity classification within the framework defined in spec-quality-checklist.md
 - What constitutes ambiguity in spec language
-- Whether acceptance criteria are testable or vague
+- Whether acceptance criteria are testable or vague (their line shape is not a judgment call -- the Category 6 shape check is mechanical and any miss is High)
 - Whether a spec type reclassification should be recommended
 
 **Cannot override:**

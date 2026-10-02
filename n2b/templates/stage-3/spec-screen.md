@@ -317,7 +317,7 @@ END EXAMPLE -->
 
 ## Acceptance Criteria
 
-{Given/When/Then statements tagged with this spec's ID. Persona-grounded -- use the persona's name, and the role where behavior differs by role.}
+{Given/When/Then statements tagged with this spec's ID. Persona-grounded -- use the persona's name, and the role where behavior differs by role. One scenario per criterion, on exactly one line: `**{FEAT-NN.SPEC-NNN}-AC-NN:** Given {context}, when {action}, then {outcome}.` -- lowercase when/then, a literal ", then", never wrapped; Stage 5 parses this shape and Gate A rejects any other. acceptance_criteria_count equals the number of criteria.}
 
 **{FEAT-NN.SPEC-NNN}-AC-01:** Given {persona name} is on {screen}, when {action}, then {observable outcome}.
 

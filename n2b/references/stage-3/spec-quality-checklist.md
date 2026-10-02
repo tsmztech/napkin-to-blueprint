@@ -182,9 +182,14 @@ Structured quality review checklist for validating specs produced by Spec Writer
 
 ---
 
-## Category 6: Acceptance Criteria Testability
+## Category 6: Acceptance Criteria Shape and Testability
 
-**What to check:** Each Given/When/Then criterion is concrete enough to pass or fail unambiguously.
+**What to check:** Each criterion is in the pinned machine-parseable shape, and is concrete enough to pass or fail unambiguously.
+
+**Shape check (mechanical -- every Stage 5 export parses AC lines by it, per backlog-schema.md §6):**
+- Every criterion is exactly one line: `**FEAT-NN.SPEC-NNN-AC-NN:** Given {context}, when {action}, then {outcome}.` -- lowercase `when`/`then`, a literal `, then` present, non-empty text on both sides of it (`when` may be folded into the Given)
+- Exactly one scenario per criterion -- a line that continues with a second action and its outcome instead of `, then` (e.g. "when she taps A she sees X, and when she taps B ...") is two criteria
+- `acceptance_criteria_count` in frontmatter equals the number of AC lines; AC IDs are unique and prefixed by the spec's own `spec_id`
 
 **General checks:**
 - Every acceptance criterion has a specific, observable outcome (not "appropriate feedback" or "correct behavior")
@@ -201,7 +206,7 @@ Structured quality review checklist for validating specs produced by Spec Writer
 - **Integration specs:** At least one criterion per inbound event x outcome combination and per degradation path
 - **Notification specs:** At least one criterion per channel x trigger x preference-state combination
 
-**Severity:** Vague or untestable criteria are **Medium**.
+**Severity:** Off-shape or mis-counted criteria are **High** -- the exports cannot parse them. Vague or untestable criteria are **Medium**.
 
 ---
 
