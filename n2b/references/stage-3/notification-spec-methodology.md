@@ -106,10 +106,10 @@ Fill the spec-notification.md template and verify completeness.
 Complete all frontmatter fields with accurate values (spec_type: notification).
 
 **Step 2: Write Acceptance Criteria.**
-Cover every channel x trigger x preference-state combination with at least one Given/When/Then criterion, plus one per delivery rule and per edge case. Ground all criteria in the persona: "Given Sarah has one follow-up due today..."
+Cover every channel x trigger x preference-state combination with at least one Given/When/Then criterion, plus one per delivery rule and per edge case. Ground all criteria in the persona: "Given Sarah has one follow-up due today..." Write each criterion as exactly one line in the pinned shape -- `**FEAT-NN.SPEC-NNN-AC-NN:** Given {context}, when {action}, then {outcome}.` with lowercase when/then and a literal ", then" -- one scenario per criterion; Stage 5 parses this shape and Gate A rejects any other.
 
 For notifications, acceptance criteria often follow the pattern:
-- "Given [recipient and preference state], When [trigger fires], Then [exact message arrives on channel] / [nothing is delivered]"
+- "Given [recipient and preference state], when [trigger fires], then [exact message arrives on channel] / [nothing is delivered]"
 
 **Step 3: Build Coverage Summary Table.**
 Tally: Channels, Trigger Paths, Preference States, Delivery Rules, Edge Cases.

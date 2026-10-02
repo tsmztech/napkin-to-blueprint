@@ -850,6 +850,41 @@ FEAT_DIR=".n2b/specifications/${FEAT_ID}-${SLUG}/"
 SPECS_WRITTEN=$(find "$FEAT_DIR" -name "FEAT-*.SPEC-*.md" 2>/dev/null | wc -l | tr -d ' ')
 ```
 
+**Acceptance-criteria shape check (mechanical, both review modes) — before the tracking update.** Stage 5's `jira` and `backlog` targets parse every AC line mechanically (backlog-schema.md §6: `**FEAT-NN.SPEC-NNN-AC-NN:** Given …, then …` — one scenario per line, a literal `, then`, non-empty given/then, `when` optionally folded into the Given), and Gate A Category 2 fails the stage on any miss. Catch it here, while the producer's fix is cheap and scoped. Same awk as Gate A — keep the two identical:
+
+```bash
+AC_SHAPE_FAILS=""
+for spec in "$FEAT_DIR"FEAT-*.SPEC-*.md; do
+  [ -f "$spec" ] || continue
+  BASENAME=$(basename "$spec")
+  HITS=$(awk -v spec="$BASENAME" '
+    /^## Acceptance Criteria/{found=1; next} /^## /{found=0}
+    found && /^\*\*FEAT-[0-9]+\.SPEC-[0-9]+-AC-[0-9]+/ {
+      if ($0 !~ /^\*\*FEAT-[0-9][0-9]\.SPEC-[0-9][0-9][0-9]-AC-[0-9][0-9][0-9]?:\*\* Given /) { print spec " line " NR ": off-shape (expected **FEAT-NN.SPEC-NNN-AC-NN:** Given ...): " substr($0,1,80); next }
+      rest=$0; sub(/^\*\*[^*]*\*\* Given /, "", rest)
+      if (!match(rest, /,"? then /)) { print spec " line " NR ": no \", then\" clause (one scenario per AC): " substr($0,1,80); next }
+      if (RSTART == 1) print spec " line " NR ": empty Given clause"
+      if (RSTART + RLENGTH > length(rest)) print spec " line " NR ": empty then clause"
+    }' "$spec")
+  AC_DECLARED=$(grep "^acceptance_criteria_count:" "$spec" | head -1 | sed 's/^acceptance_criteria_count: *//' | tr -d ' ')
+  AC_ACTUAL=$(awk '/^## Acceptance Criteria/{found=1; next} /^## /{found=0} found && /^\*\*FEAT-[0-9][0-9]\.SPEC-[0-9][0-9][0-9]-AC-[0-9][0-9][0-9]?:\*\* Given /{n++} END{print n+0}' "$spec")
+  [ "$AC_DECLARED" = "$AC_ACTUAL" ] || HITS="$HITS
+$BASENAME: acceptance_criteria_count ($AC_DECLARED) != AC lines in pinned shape ($AC_ACTUAL)"
+  [ -z "$HITS" ] || AC_SHAPE_FAILS="$AC_SHAPE_FAILS
+$HITS"
+done
+[ -z "$AC_SHAPE_FAILS" ] && echo "AC shape OK for $FEAT_ID" || echo "AC shape fixes needed for $FEAT_ID:$AC_SHAPE_FAILS"
+```
+
+- **`AC_SHAPE_FAILS` empty:** proceed to the tracking update below.
+- **`AC_SHAPE_FAILS` non-empty — one scoped fix (maximum 1 per feature):** re-spawn that feature's Feature Spec Producer:
+  - Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/feature-spec-producer.md`. Shape fix (1 of maximum 1): the workflow's mechanical check found acceptance-criteria lines in `{feature_folder_path}` that do not match the pinned shape — `**FEAT-NN.SPEC-NNN-AC-NN:** Given …, when …, then …` on one line, lowercase `when`/`then`, a literal `, then`, exactly one scenario per criterion, `acceptance_criteria_count` equal to the number of AC lines. Findings (file, line, reason): {AC_SHAPE_FAILS}. Rewrite ONLY the listed lines. To split a folded line into two criteria, keep the original ID for the first scenario and append the second as a new criterion with the next unused ordinal at the end of that spec's section — never renumber existing IDs — then update `acceptance_criteria_count`. Change nothing else. Do not ask for clarification — work autonomously."
+  - Tools: Read, Write
+  - Model: same as the original Feature Spec Producer spawn (the `feature-spec-producer` line of the model resolution output)
+  - maxTurns: 40
+
+  Re-run the check above once. Record the fix in STAGE.md `## Deviations`: `- **Pass B shape fix:** {FEAT-ID} — {count} off-shape AC line(s), rewritten and clean` or `… rewritten; {N} still off-shape → Gate A will report`. If lines remain off-shape, do not retry again — continue with the tracking update; Gate A Category 2 names them at the end of the stage. (Pass C reviewers also apply the shape rule, but this check is the mechanical guarantee in both review modes.)
+
 - **`SPEC_REVIEW == "self-only"`:** Update tracker: `status: done`, `specs_written: {actual count}`, `quality_passed: true`. Tick all `- [x]` checkboxes in the Specs section (append `— written, self-review passed` to each). Update STAGE.md Feature Progress: that feature row changes to `✅ DONE` with spec count, Quality column `self-only`. Increment `features_done` by 1.
 - **`SPEC_REVIEW == "independent"`:** Update tracker: `specs_written: {actual count}` — `status` stays `in-progress` and `quality_passed` stays `false` until the feature's review passes in a Pass C invocation. Tick all `- [x]` checkboxes in the Specs section (append `— written, self-review passed` to each). Update STAGE.md Feature Progress: that feature row changes to `○ review pending`, Quality column `○ review pending`.
 
@@ -1229,6 +1264,32 @@ for spec in .n2b/specifications/FEAT-*/FEAT-*.SPEC-*.md; do
   else
     fail "HARD FAIL: missing Acceptance Criteria in $BASENAME"
   fi
+
+  # Acceptance-criteria line shape (hard) — the backlog-schema.md §6 contract every Stage 5 target
+  # parses by: one scenario per line, `**FEAT-NN.SPEC-NNN-AC-NN:** Given …, then …` with a literal
+  # `, then` (optionally `", then`) and non-empty given/then; `when` may be folded into the Given.
+  # Same awk as the Pass B post-producer check — keep the two identical.
+  awk -v spec="$BASENAME" '
+    /^## Acceptance Criteria/{found=1; next} /^## /{found=0}
+    found && /^\*\*FEAT-[0-9]+\.SPEC-[0-9]+-AC-[0-9]+/ {
+      if ($0 !~ /^\*\*FEAT-[0-9][0-9]\.SPEC-[0-9][0-9][0-9]-AC-[0-9][0-9][0-9]?:\*\* Given /) { print "HARD FAIL: AC line off-shape (expected **FEAT-NN.SPEC-NNN-AC-NN:** Given ...) in " spec " line " NR ": " substr($0,1,80); next }
+      rest=$0; sub(/^\*\*[^*]*\*\* Given /, "", rest)
+      if (!match(rest, /,"? then /)) { print "HARD FAIL: AC line has no \", then\" clause (one scenario per AC: Given ..., when ..., then ...) in " spec " line " NR ": " substr($0,1,80); next }
+      if (RSTART == 1) print "HARD FAIL: AC line has an empty Given clause in " spec " line " NR
+      if (RSTART + RLENGTH > length(rest)) print "HARD FAIL: AC line has an empty then clause in " spec " line " NR
+    }' "$spec" | while IFS= read -r msg; do fail "$msg"; done
+
+  # Acceptance-criteria roster (hard) — frontmatter count equals the §6.1 lines; IDs unique and owned by this spec
+  AC_DECLARED=$(grep "^acceptance_criteria_count:" "$spec" | head -1 | sed 's/^acceptance_criteria_count: *//' | tr -d ' ')
+  AC_IDS=$(awk '/^## Acceptance Criteria/{found=1; next} /^## /{found=0} found && /^\*\*FEAT-[0-9][0-9]\.SPEC-[0-9][0-9][0-9]-AC-[0-9][0-9][0-9]?:\*\* Given /{id=$1; sub(/^\*\*/,"",id); sub(/:\*\*$/,"",id); print id}' "$spec")
+  AC_ACTUAL=$(echo "$AC_IDS" | grep -c "AC-")
+  [ -n "$AC_DECLARED" ] || fail "HARD FAIL: missing acceptance_criteria_count in $BASENAME"
+  [ -z "$AC_DECLARED" ] || [ "$AC_DECLARED" = "$AC_ACTUAL" ] || fail "HARD FAIL: acceptance_criteria_count ($AC_DECLARED) != AC lines in pinned shape ($AC_ACTUAL) in $BASENAME"
+  AC_DUPS=$(echo "$AC_IDS" | sort | uniq -d | tr '\n' ' ')
+  [ -z "$AC_DUPS" ] || fail "HARD FAIL: duplicate AC IDs in $BASENAME: $AC_DUPS"
+  SPEC_ID=$(grep "^spec_id:" "$spec" | head -1 | sed 's/^spec_id: *//' | tr -d ' ')
+  AC_FOREIGN=$(echo "$AC_IDS" | grep "AC-" | grep -v "^${SPEC_ID}-AC-" | tr '\n' ' ')
+  [ -z "$AC_FOREIGN" ] || fail "HARD FAIL: AC IDs not prefixed by spec_id $SPEC_ID in $BASENAME: $AC_FOREIGN"
 
   # Leaked template-artifact lines (soft) — a whole prose line still wrapped in single braces
   # (e.g. "{The core derivation the rule below applies...}") is an unfilled template
@@ -1687,7 +1748,7 @@ Partial output is preserved. Do NOT delete any files that were successfully prod
 - **Pass A batching** (Step 3): batch selected from unanalyzed features by product-features.md `**Priority:**` tier (Core → Important → Nice-to-Have, numeric within tier); `features_total` set from product-features.md count on the first Pass A invocation; Architect spawned batch-scoped (feature-scope list in prompt; dependency map built only when absent, covering ALL features; External Touchpoints full coverage check only on the FINAL_A_BATCH prompt); per-feature trackers created per-analyst for the batch; Pass A checkbox ticks only when every feature has a tracker
 - Per-feature FEAT-NN-{slug}.md files created per-analyst during Pass A batch result processing — written to `.n2b/tracking/stages/s3-specify/` using the feature-tracker.md template shape; each contains feature ID, feature_name, `status: not-started`, `specs_expected: {N}`, `specs_written: 0`, `quality_passed: false`, and Specs checkbox list
 - Pass A architect prompt carries the context-package requirements (C-14 Functional Depth fields + Phase, C-15 Access Matrix slice, C-16 NFR/Dependencies slices, C-17 journey coverage, success-metrics slice), the dependency-map requirements (External Touchpoints + Contention/Data Sensitivity), and the extended Brief validation (Roles Touched, six frontmatter counts); maxTurns 150
-- **Pass B batching** (Step 4): runs only when all features analyzed and some await specs; batch by feature-overview.md `priority_tier` (Core → Important → Nice-to-Have, numeric within tier); producers spawned in parallel for batch features only; producer prompts list the five-type methodology/template lookup; maxTurns 120; NO reviewer spawns in a Pass B invocation
+- **Pass B batching** (Step 4): runs only when all features analyzed and some await specs; batch by feature-overview.md `priority_tier` (Core → Important → Nice-to-Have, numeric within tier); producers spawned in parallel for batch features only; producer prompts list the five-type methodology/template lookup; maxTurns 120; as each producer returns, the workflow runs the mechanical acceptance-criteria shape check (backlog-schema §6 line shape + `acceptance_criteria_count` reconciliation) and re-spawns that producer at most once, scoped to the named lines (maxTurns 40), in BOTH review modes; NO reviewer spawns in a Pass B invocation
 - Producer Phase 2.5 self-review runs in BOTH spec_review modes
 - In `self-only` mode: producer completion sets tracker `status: done`, `quality_passed: true`, dashboard Quality `self-only`; Pass C never runs as an invocation; the terminal invocation annotates the Pass C checkbox as skipped
 - **Pass C batching** (Step 4.5): runs only when all features have specs and some are review-pending; batch in numeric FEAT order; reviewers spawned in parallel (maxTurns 70); must-fix findings route ONE producer revision re-spawn (max 1 revision cycle per feature, maxTurns 120) then one re-review; Quality column lands `reviewed: pass` or `reviewed: pass-after-revision`; features with must-fix findings still outstanding after the cycle fail the stage (gate-fail with `stage-3-pass-c-failed`, `--continue` re-reviews them)
@@ -1695,7 +1756,7 @@ Partial output is preserved. Do NOT delete any files that were successfully prod
 - **Pass checkbox discipline under batching:** Pass A / B / C checkboxes tick only in the invocation where the last feature clears that pass; per-feature truth lives in the trackers and Feature Progress table
 - Terminal invocation (Step 5): Pass D skipped on resume if already ticked; reconciler prompt covers all five spec types, External Touchpoints ↔ Integration consistency, Notification trigger sources, Degradation Behavior screen references, and the Check 14 platform-parameter sweep (markers → platform-parameters.md with non-binding proposed defaults; file skipped only when zero markers exist — contract C-36); maxTurns 90; step-complete after Pass D ticks `- [x] Pass D — Reconciliation`, advances STATE.md current_step to gate-a
 - gate-check transition: STATE.md stage_status: gate-check, STAGE.md Gates section begins recording per-category evidence
-- Gate A validates all 6 categories: feature folders; per-spec structural with five spec-type case arms (screen/automation/logic-rule/integration/notification per the C-20 grep table) plus the soft Analytics-section check and the Acceptance-Criteria non-empty check; cross-spec with six-count-field presence and INTEG_COUNT/NOTIF_COUNT reconciliation; dependency map with External Touchpoints presence + Integration-spec existence (hard) and per-entity Contention lines (soft); design-system passthrough conditional on config — `user`: package dir non-empty + file count mirrors intake (hard); `none`: stale passthrough dir is a soft warning, otherwise skipped; platform-parameters registry (C-36) — marker slugs ↔ registry rows symmetric-difference empty (hard when markers exist), missing registry with markers present (hard), stale registry with zero markers / bare "fixed platform-wide" phrasing / near-miss marker shapes / missing row-scoped decide-before-build status (soft; the phrasing and near-miss lints run in both branches, so a package whose only sites are malformed still warns)
+- Gate A validates all 6 categories: feature folders; per-spec structural with five spec-type case arms (screen/automation/logic-rule/integration/notification per the C-20 grep table) plus the soft Analytics-section check and the acceptance-criteria checks — section non-empty, every AC line in the backlog-schema §6 shape (`**ID:** Given …, then …` with non-empty given/then), `acceptance_criteria_count` equal to the AC-line count, AC IDs unique and prefixed by the spec's `spec_id` (all hard); cross-spec with six-count-field presence and INTEG_COUNT/NOTIF_COUNT reconciliation; dependency map with External Touchpoints presence + Integration-spec existence (hard) and per-entity Contention lines (soft); design-system passthrough conditional on config — `user`: package dir non-empty + file count mirrors intake (hard); `none`: stale passthrough dir is a soft warning, otherwise skipped; platform-parameters registry (C-36) — marker slugs ↔ registry rows symmetric-difference empty (hard when markers exist), missing registry with markers present (hard), stale registry with zero markers / bare "fixed platform-wide" phrasing / near-miss marker shapes / missing row-scoped decide-before-build status (soft; the phrasing and near-miss lints run in both branches, so a package whose only sites are malformed still warns)
 - Hard failures trigger gate-fail transition; partial output preserved; per-feature done files preserved for resume
 - Soft failures produce continuation message with appended warnings
 - Category 5 failure (Categories 1-4 passing) retries the Step 2 passthrough copy once then re-runs Category 5 only — no agent respawns; Pass C reviewer re-runs are feature-scoped inside Step 4.5 only — Gate A never re-spawns reviewers

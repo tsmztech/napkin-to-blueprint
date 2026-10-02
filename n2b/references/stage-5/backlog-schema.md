@@ -293,6 +293,11 @@ Pinned against the live Homely package (2026-07-26): **2,442 of 2,442 AC lines a
 spec files match the line pattern below exactly** — the count equals the sum of every spec's
 `acceptance_criteria_count` frontmatter field.
 
+Stage 3 enforces this shape upstream: Gate A Category 2 and the Pass B post-producer check in
+`n2b/workflows/stage-3/specify.md` fail on any AC line that misses the §6.1 pattern, lacks the §6.2
+then-delimiter, or has an empty `given`/`then`, and on any `acceptance_criteria_count` mismatch —
+with the same regexes. Change the two places together.
+
 ### 6.1 Line pattern
 
 Within a spec's `## Acceptance Criteria` section (from that heading to the next `##` heading),

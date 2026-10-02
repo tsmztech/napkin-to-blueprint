@@ -240,7 +240,7 @@ END EXAMPLE -->
 
 ## Acceptance Criteria
 
-{Given/When/Then statements covering every channel x trigger x preference-state combination, plus every delivery rule and edge case. Persona-grounded.}
+{Given/When/Then statements covering every channel x trigger x preference-state combination, plus every delivery rule and edge case. Persona-grounded. One scenario per criterion, on exactly one line: `**{FEAT-NN.SPEC-NNN}-AC-NN:** Given {context}, when {action}, then {outcome}.` -- lowercase when/then, a literal ", then", never wrapped; Stage 5 parses this shape and Gate A rejects any other. acceptance_criteria_count equals the number of criteria.}
 
 **{FEAT-NN.SPEC-NNN}-AC-01:** Given {persona name} {context}, when {trigger}, then {observable outcome}.
 

@@ -171,15 +171,15 @@ Fill the spec-logic-rule.md template and verify completeness.
 Complete all frontmatter fields. Include accurate rule_count and acceptance_criteria_count.
 
 **Step 2: Write Acceptance Criteria.**
-One criterion per rule minimum. For conditional rules, one criterion per condition branch.
+One criterion per rule minimum. For conditional rules, one criterion per condition branch. Write each criterion as exactly one line in the pinned shape -- `**FEAT-NN.SPEC-NNN-AC-NN:** Given {context}, when {action}, then {outcome}.` with lowercase when/then and a literal ", then" -- one scenario per criterion; Stage 5 parses this shape and Gate A rejects any other.
 
 Ground all criteria in the persona: "Given Sarah enters a contact with..." -- and name the role where behavior differs by role.
 
 For rules, acceptance criteria often follow the pattern:
-- Valid input: "Given Sarah enters [valid value] in [field], When she [triggers validation], Then [success behavior]"
-- Invalid input: "Given Sarah enters [invalid value] in [field], When she [triggers validation], Then [error message] is shown"
-- Conditional: "Given Sarah has [condition], When she [action], Then [conditional behavior]"
-- Authorization: "Given [role] [meets/fails the condition], When they attempt [action], Then [allowed outcome / exact denied behavior]" -- every Authorization Rules row gets criteria for both the allowed and denied branches (a "Never" row needs only the denied branch; an unconditional "Always" row needs only the allowed branch).
+- Valid input: "Given Sarah enters [valid value] in [field], when she [triggers validation], then [success behavior]"
+- Invalid input: "Given Sarah enters [invalid value] in [field], when she [triggers validation], then [error message] is shown"
+- Conditional: "Given Sarah has [condition], when she [action], then [conditional behavior]"
+- Authorization: "Given [role] [meets/fails the condition], when they attempt [action], then [allowed outcome / exact denied behavior]" -- every Authorization Rules row gets criteria for both the allowed and denied branches (a "Never" row needs only the denied branch; an unconditional "Always" row needs only the allowed branch).
 
 **Step 3: Build Edge Cases section.**
 For each rule, identify boundary conditions:
