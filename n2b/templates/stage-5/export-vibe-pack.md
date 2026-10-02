@@ -221,6 +221,11 @@ shapes, so they are RESERVED and must appear nowhere else in the file:
   feature. Matched by `^- FEAT-[0-9]{2}\.SPEC-[0-9]{3} — [0-9]+ acceptance criteria`.
   The spec-digest bullets are bolded (`- **FEAT-…`) precisely so they never match this
   shape.
+- **Spec-digest bullets** — `- **FEAT-NN.SPEC-NNN — {Spec Name}** ({type}): {Purpose line}`,
+  one per SPEC of the prompt's feature. The subject ID must be the prompt's own feature;
+  the Purpose tail is the canonical line verbatim and is the ONLY place a prompt may carry
+  another feature's SPEC/AC ID (a cross-reference Stage 3 wrote into the Purpose). Never
+  trim, paraphrase, or strip IDs from it — check mode compares it byte-for-byte.
 - **Per-prompt total line** — `All {n} acceptance criteria above must pass end-to-end…`,
   matched by `^All [0-9]+ acceptance criteria above`. Exactly one per feature prompt; the
   cited totals sum to the package AC count across the file (VP-4).
@@ -447,8 +452,21 @@ for (let i = 1; i < prompts.length; i++) {
   if (!hm) fail(`prompt ${i}'s header carries no (FEAT-NN) suffix: "${p.title}"`);
   if (hm[1] !== f.id) fail(`prompt ${i} is ${hm[1]} but build-order position ${i} is ${f.id} -- the sequence must equal the computed order`);
   const body = p.body.join("\n");
-  for (const m of body.matchAll(/(FEAT-\d{2})\.SPEC-\d{3}/g)) {
-    if (m[1] !== f.id) fail(`prompt ${i} (${f.id}) references ${m[0]} -- every SPEC/AC ID in a prompt must belong to that prompt's feature`);
+  // Spec-digest bullets carry the canonical Purpose verbatim, and a Purpose may cite
+  // another feature's spec (a legitimate cross-reference). So a digest line is checked
+  // by identity instead: its subject is one of this feature's specs and its tail equals
+  // the canonical Purpose exactly. Every other line stays under the strict bleed scan.
+  const specById = new Map(f.specs.map(s => [s.id, s]));
+  const scanLines = [];
+  for (const l of p.body) {
+    const dg = l.match(/^- \*\*(FEAT-\d{2}\.SPEC-\d{3}) — .*?\*\* \([^)]*\): (.*)$/);
+    if (!dg) { scanLines.push(l); continue; }
+    const s = specById.get(dg[1]);
+    if (!s) fail(`prompt ${i} (${f.id}) carries a spec digest for ${dg[1]} -- digests belong to the prompt's own feature`);
+    if (dg[2] !== s.purpose) fail(`prompt ${i} (${f.id}) digest for ${dg[1]} is not its verbatim Purpose line`);
+  }
+  for (const m of scanLines.join("\n").matchAll(/(FEAT-\d{2})\.SPEC-\d{3}/g)) {
+    if (m[1] !== f.id) fail(`prompt ${i} (${f.id}) references ${m[0]} outside a spec digest -- every other SPEC/AC ID in a prompt must belong to that prompt's feature`);
   }
   const dod = new Map();
   for (const l of p.body) {
@@ -562,7 +580,8 @@ lean-prompt guidance); each definition-of-done cites the feature's AC IDs and co
 pointing into the blueprint copy; a prompt MAY carry a few exemplar ACs, and any AC text
 that appears must be verbatim. Every SPEC/AC ID inside prompt N belongs to prompt N's
 FEAT — no cross-feature bleed (the attribution rule, gate-checked by VP-4 and the script's
-parse-back).
+parse-back) — except inside a spec-digest bullet's verbatim Purpose tail, where a
+cross-reference to another feature's spec is canonical text and stays exactly as written.
 
 | # | Content | Method |
 |---|---------|--------|

@@ -1579,7 +1579,12 @@ fi
 
 **VP-4 — AC attribution + definition-of-done counts.** Every SPEC and AC ID inside prompt
 N's body belongs to prompt N's FEAT (prompt-scoped extraction — the Phase 3
-Measurable-Outcome misattribution lesson, now a 4a rule); each per-feature prompt's SPEC-ID
+Measurable-Outcome misattribution lesson, now a 4a rule). The one exemption is a
+spec-digest bullet (`- **FEAT-NN.SPEC-NNN — …**`): only its subject ID is attributed,
+because its tail is the canonical Purpose line verbatim and a Purpose may cross-reference
+another feature's spec — the script's parse-back proves the subject belongs to the
+feature and the tail equals the canonical Purpose byte-for-byte, and 4b re-samples it
+(n2b issue #19). Each per-feature prompt's SPEC-ID
 set equals the feature's canonical roster (symmetric-difference evidence; only **plain**
 SPEC citations count — an AC ID embeds its SPEC string, but a prompt whose digest is gone
 and whose done-line AC range is the sole SPEC trace is a hollowed prompt, and must not
@@ -1601,6 +1606,9 @@ job:
 VP_IDS=$(awk '
   /^## Prompt 0 — /{cur=""; next}
   /^## Prompt [1-9][0-9]* — .*\(FEAT-[0-9][0-9]\)$/{match($0, /\(FEAT-[0-9][0-9]\)$/); cur=substr($0, RSTART+1, 7); next}
+  cur != "" && /^- \*\*FEAT-[0-9][0-9]\.SPEC-[0-9][0-9][0-9] — /{
+    match($0, /FEAT-[0-9][0-9]\.SPEC-[0-9][0-9][0-9]/); print cur " " substr($0, RSTART, RLENGTH); next
+  }
   cur != "" {
     line=$0
     while (match(line, /FEAT-[0-9][0-9]\.SPEC-[0-9][0-9][0-9](-AC-[0-9][0-9][0-9]?)?/)) {
