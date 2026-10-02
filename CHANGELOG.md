@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-02
+
 ### Changed
 - Codex is no longer labelled experimental: the `(experimental)` tag is gone from the README badge, runtime tables, requirements, and `--help`, along with the "not yet verified live" notes on Codex and OpenCode; the `.agents/skills/` troubleshooting tip stays.
 - README accuracy pass: the Stage 4 walkthrough no longer claims a technical-profile questionnaire — the stage is fully autonomous (the profile is extracted from the Stage 3 specs, and hosting/budget/technology boundaries are captured in Stage 1 as constraints); Stage 4 names all five passes; Stage 1 lists `.n2b/config.json` as an output; Stage 3 lists the reconciliation log, the conditional platform-parameters registry, and the design-system passthrough; the demo-GIF placeholder is gone.
@@ -65,7 +67,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Initial release: five-stage pipeline (`/n2b:s1-init`, `/n2b:s2-define`, `/n2b:s3-specify`, `/n2b:s4-architect`, `/n2b:s5-export`) plus `/n2b:status`, for Claude Code.
 - Stage 5 export targets including dev-brief, Jira, Spec Kit, and vibe-coding packs.
 
-[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tsmztech/napkin-to-blueprint/compare/v0.1.0...v0.2.0
