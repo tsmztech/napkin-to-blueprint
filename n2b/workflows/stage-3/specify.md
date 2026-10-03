@@ -2,7 +2,7 @@
 
 This workflow coordinates the specify pipeline using a 4-pass architecture designed to keep each agent's context manageable:
 
-- **Pass A (Analysis):** Requirements Architect validates Stage 2 inputs, builds the dependency map once (including External Touchpoints and per-shared-entity Contention / Data Sensitivity notes), fans out Feature Analysts for the current batch of features, and validates their Briefs. Runs across as many invocations as the feature count requires.
+- **Pass A (Analysis):** Requirements Architect validates Stage 2 inputs, builds the dependency map once (including External Touchpoints and per-shared-entity Contention / Data Sensitivity notes), and writes one context package per feature in the current batch; this workflow fans out the Feature Analysts from those packages; the Architect then validates their Briefs. Runs across as many invocations as the feature count requires.
 - **Pass B (Specification):** One Feature Spec Producer per batch feature, running in parallel. Each writes all specs for its feature across the five spec types (screen, automation, logic-rule, integration, notification) and self-verifies with its Phase 2.5 self-review — isolated in its own context. The Phase 2.5 self-review runs in every `spec_review` mode.
 - **Pass C (Quality Review):** Independent per-feature review, keyed on config `spec_review`. When `spec_review` is `independent` (the default — also the value applied when the key is missing), one Spec Quality Reviewer is spawned per batch feature, in parallel. Must-fix findings route one producer revision re-spawn (maximum 1 revision cycle per feature), followed by one re-review. When `spec_review` is `self-only`, this pass is skipped entirely and the producer's Phase 2.5 self-review is the only quality gate.
 - **Pass D (Reconciliation):** Cross-Reference Reconciler reads all specs from disk and fixes cross-feature inconsistencies across all five spec types, including External Touchpoints ↔ Integration spec consistency. One agent — never batched.
@@ -262,7 +262,7 @@ echo "RECORDED_BATCH=${RECORDED_BATCH:-none}"
 
 `BATCH_SIZE=all` means every remaining feature of the **current pass** is processed in this invocation — the pass boundary still checkpoints. The resolved value is recorded into STAGE.md frontmatter at Step 1.5 (Path A writes it; Path B updates it only when `BATCH_OVERRIDE` was supplied, adding a `## Deviations` note: `- **Invocation:** batch size overridden to {BATCH_SIZE} for resume {RESUME_N} (--batch)`).
 
-**Model resolution (once for this workflow):** run the `n2b-model-resolver` block below — owned by `model-profiles.md` (Resolution Logic) and reproduced here verbatim. It prints `MODEL_PROFILE`, `MODEL_PROVIDER`, `RUNTIME`, `TRANSPORT`, and one line per agent role. Every spawn in this workflow takes its model from its role's line — Stage 3 uses `requirements-architect`, `feature-analyst`, `feature-spec-producer`, `spec-quality-reviewer`, `cross-reference-reconciler` — and applies it per the **Transport Rules** table for `RUNTIME` in `model-profiles.md` (on Claude Code: pass the ID as the Agent tool's `model` parameter). `(omit)` means pass **no** `model` parameter — never the literal string, never a guess. Never hardcode a model name in this workflow and never look a model up by hand. The Feature Analyst's line is forwarded through the Requirements Architect's spawn prompt (the Architect spawns the analysts) — forward the ID, or the instruction to omit `model`, exactly as resolved.
+**Model resolution (once for this workflow):** run the `n2b-model-resolver` block below — owned by `model-profiles.md` (Resolution Logic) and reproduced here verbatim. It prints `MODEL_PROFILE`, `MODEL_PROVIDER`, `RUNTIME`, `TRANSPORT`, and one line per agent role. Every spawn in this workflow takes its model from its role's line — Stage 3 uses `requirements-architect`, `feature-analyst`, `feature-spec-producer`, `spec-quality-reviewer`, `cross-reference-reconciler` — and applies it per the **Transport Rules** table for `RUNTIME` in `model-profiles.md` (on Claude Code: pass the ID as the Agent tool's `model` parameter). `(omit)` means pass **no** `model` parameter — never the literal string, never a guess. Never hardcode a model name in this workflow and never look a model up by hand. Subagents cannot spawn subagents on any supported runtime, so every agent in this workflow is a leaf: this workflow spawns the Feature Analysts itself (Step 3b) and applies the `feature-analyst` line directly, like every other role.
 
 ```bash
 # n2b-model-resolver — resolve every agent role's model once per workflow (model-profiles.md, Resolution Logic). Do not edit here: model-profiles.md owns this block and npm test checks every copy matches.
@@ -650,9 +650,11 @@ Display status:
   ○  Pass A batch: analyzing {BATCH_A size} of {UNANALYZED_COUNT} remaining features — {FEAT-IDs in BATCH_A}
 ```
 
-Spawn the Requirements Architect (batch-scoped):
+A Pass A batch is four spawn steps, all owned by this workflow — subagents cannot spawn subagents on any supported runtime, so the Requirements Architect never spawns the Feature Analysts. The Architect runs twice per batch (three times when a Brief needs a revision round): once to **prepare** (its contract Steps 1–5, ending with one context-package file per batch feature) and once to **validate** (Steps 7–7.5). The analysts run in between, spawned here.
 
-- Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/requirements-architect.md` and execute your complete task as described. Input directory: `.n2b/features/` — all 7 Stage 2 documents are present with `status: final`. Output directory: `.n2b/specifications/`. **Feature scope for this batch: {FEAT-IDs in BATCH_A} — create folders, assemble context packages, and spawn Feature Analysts for ONLY these features.** Per your contract's batch-mode rules: build `feature-dependency-map.md` (covering ALL features) only if it does not already exist — when it exists, read it and leave it untouched except for Integration-spec-ID completion for this batch's features. {When FINAL_A_BATCH: 'This is the FINAL analysis batch — after validating this batch's Briefs, run the full External Touchpoints coverage check across ALL Briefs per your contract.' Otherwise: 'This is not the final analysis batch — defer the full External Touchpoints coverage check; complete only this batch's Integration-spec-ID rows.'} Write all deliverables per your contract's deliverables section. Do not ask for clarification — work autonomously.
+**3a — Spawn the Requirements Architect (prepare, batch-scoped):**
+
+- Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/requirements-architect.md` and execute your **prepare** invocation (contract Steps 1–5) as described. Input directory: `.n2b/features/` — all 7 Stage 2 documents are present with `status: final`. Output directory: `.n2b/specifications/`. **Feature scope for this batch: {FEAT-IDs in BATCH_A} — create folders and assemble context packages for ONLY these features.** Per your contract's batch-mode rules: build `feature-dependency-map.md` (covering ALL features) only if it does not already exist — when it exists, read it and leave it untouched. Write each feature's context package to `.n2b/tracking/stages/s3-specify/context/{FEAT-ID}-context.md` (create the `context/` directory if needed) — the workflow spawns the Feature Analysts from these files; you do not spawn anyone. Do not validate Briefs in this invocation. Do not ask for clarification — work autonomously.
 
 Context-package requirements (slice the Stage 2 documents — elaborate them downstream, never re-derive):
 - Per-feature record from product-features.md: the full entry including `**Phase:**` and all eight Functional Depth fields (`**Primary Flows & Alternates:**`, `**States:**`, `**Validation & Limits:**`, `**Access:**`, `**Communications:**`, `**Data Notes:**`, `**Interactions:**`, `**Signals:**`).
@@ -663,26 +665,70 @@ Context-package requirements (slice the Stage 2 documents — elaborate them dow
 
 Dependency-map requirements: produce feature-dependency-map.md per your contract, including the `## External Touchpoints` section (category-level external dependencies traced to assumptions-constraints.md `## Dependencies`, mapped to features and Integration specs) and the per-shared-entity `**Contention:**` and `**Data Sensitivity:**` lines.
 
-Brief validation: run your programmatic checks on every Feature Breakdown Brief per your contract — including Roles Touched present on every Spec Inventory row and all six frontmatter counts (spec_count, screen_count, automation_count, logic_rule_count, integration_count, notification_count — zero is a legal value, an absent field is not).
-
-Sub-agent model: spawn every Feature Analyst with model `{the feature-analyst line of the model resolution output — a model ID, or the instruction to omit the model parameter when it says (omit)}` applied per the Transport rule for this runtime in model-profiles.md (this workflow resolved it; use the same value for re-spawn cycles too)."
-- Tools: Read, Write, Bash, Agent
+Return a one-line summary when done: the batch's FEAT-IDs, whether the dependency map was built or read, and the package paths written."
+- Tools: Read, Write, Bash
 - Model: the `requirements-architect` line of the model resolution output (Step 1), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
 - maxTurns: 150
 
-Wait for the Architect to complete. Verify the batch's feature folders and the dependency map exist:
+Wait for the Architect to return. Verify the batch's folders, context packages, and the dependency map exist:
 
 ```bash
-# Verify each BATCH_A feature has a folder with a non-empty feature-overview.md
+# Verify each BATCH_A feature has a folder and a non-empty context package
 for FEAT_ID in $BATCH_A_IDS; do
   dir=$(ls -d .n2b/specifications/${FEAT_ID}-*/ 2>/dev/null | head -1)
-  { [ -n "$dir" ] && [ -s "$dir/feature-overview.md" ]; } && echo "$FEAT_ID: ok" || echo "$FEAT_ID: MISSING"
+  [ -n "$dir" ] && echo "$FEAT_ID: folder ok" || echo "$FEAT_ID: folder MISSING"
+  [ -s ".n2b/tracking/stages/s3-specify/context/${FEAT_ID}-context.md" ] && echo "$FEAT_ID: context package ok" || echo "$FEAT_ID: context package MISSING"
 done
 
 [ -f ".n2b/specifications/feature-dependency-map.md" ] && echo "Dependency map: ok" || echo "Dependency map: MISSING"
 ```
 
-If any batch feature's folder or overview is missing, display failure and halt — the Pass A batch must complete successfully before checkpointing.
+If any folder, context package, or the dependency map is missing, display failure and halt — nothing has been analyzed yet, and `/n2b:s3-specify --continue` re-runs this batch from the top (Step 1.5 wipes folders that have no Brief).
+
+**3b — Spawn the Feature Analysts (parallel, one per batch feature, ALL in the SAME step):**
+
+Display:
+
+```
+  ○  Pass A: spawning {BATCH_A size} Feature Analysts (parallel)
+```
+
+For each `FEAT_ID` in `BATCH_A`, with its folder `{feature_folder_path}` from 3a:
+
+- Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/feature-analyst.md` and execute your complete task as described. Your context package is the file `.n2b/tracking/stages/s3-specify/context/{FEAT_ID}-context.md` — read it in full; it is your entire Stage 2 input (do not read `.n2b/features/` or other features' folders). Assigned feature number: {FEAT_ID}. Output directory: `{feature_folder_path}`. Write your deliverable (`feature-overview.md`) per your contract's deliverables section. Do not ask for clarification — work autonomously."
+- Tools: Read, Write
+- Model: the `feature-analyst` line of the model resolution output (Step 1), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
+- maxTurns: 80
+
+Wait for ALL analysts to return. Verify each batch feature has a non-empty Brief:
+
+```bash
+for FEAT_ID in $BATCH_A_IDS; do
+  dir=$(ls -d .n2b/specifications/${FEAT_ID}-*/ 2>/dev/null | head -1)
+  { [ -n "$dir" ] && [ -s "$dir/feature-overview.md" ]; } && echo "$FEAT_ID: ok" || echo "$FEAT_ID: MISSING"
+done
+```
+
+If a Brief is missing, re-spawn that feature's Feature Analyst once (same prompt, same model). If it is still missing, display failure and halt — `/n2b:s3-specify --continue` re-runs Pass A for the unanalyzed feature; the dependency map and the other Briefs are kept.
+
+**3c — Spawn the Requirements Architect (validate, batch-scoped):**
+
+- Prompt: "Read the agent contract at `.claude/n2b/agents/stage-3/requirements-architect.md` and execute your **validate** invocation (contract Steps 7–7.5) as described. **Feature scope for this batch: {FEAT-IDs in BATCH_A}.** Their Briefs are at `.n2b/specifications/FEAT-NN-{slug}/feature-overview.md`; the dependency map is at `.n2b/specifications/feature-dependency-map.md`; each feature's context package (the capability and journey-step lists your checks compare against) is at `.n2b/tracking/stages/s3-specify/context/{FEAT-ID}-context.md`. Run all 5 programmatic checks on every batch Brief — including Roles Touched present on every Spec Inventory row and all six frontmatter counts (spec_count, screen_count, automation_count, logic_rule_count, integration_count, notification_count — zero is a legal value, an absent field is not). {When FINAL_A_BATCH: 'This is the FINAL analysis batch — also run the full External Touchpoints coverage check across ALL Briefs per your contract, then set the map to status: final.' Otherwise: 'This is not the final analysis batch — defer the full External Touchpoints coverage check; complete only this batch's Integration-spec-ID rows and leave the map draft.'} You do not spawn anyone: if any Brief fails a zero-tolerance check, or a touchpoint row is uncovered, report every finding in your `## Brief Validation` verdict block and STOP without completing Step 7.5 — the workflow runs one revision round and spawns you again to re-validate. If every Brief passes, complete Step 7.5 and report PASS. Do not ask for clarification — work autonomously."
+- Tools: Read, Write, Bash
+- Model: the `requirements-architect` line of the model resolution output (Step 1), applied per the Transport rule for RUNTIME (model-profiles.md) — omit the `model` parameter when it says `(omit)`
+- maxTurns: 80
+
+Wait for the Architect to return and read its `## Brief Validation` block (shape per its contract): one `- FEAT-NN: PASS` or `- FEAT-NN: REVISE` line per batch feature, each REVISE followed by indented `check {n} … → …` lines naming the gaps, then `- Touchpoints: {complete | gaps: …}` and `- Map: {draft | final}`.
+
+**3d — One revision round (only when any line says REVISE or Touchpoints reports gaps):**
+
+For each REVISE feature (and the owning feature of each touchpoint gap), re-spawn its Feature Analyst with the 3b prompt plus this appended, ALL in the SAME step: "Revision (1 of maximum 1): the Requirements Architect's validation found these gaps in your Brief — {that feature's finding lines, verbatim}. Update `feature-overview.md` in place: add the missing coverage, keep every existing SPEC ID, append new specs with the next sequential SPEC-NNN, and refresh the six frontmatter counts. Change nothing the findings do not name." Same tools, model, and maxTurns as 3b.
+
+Then spawn the Architect (validate) again with the 3c prompt plus: "Re-validation (final): {revised FEAT-IDs} were revised once — re-run the 5 checks on them (and the touchpoint coverage check if it reported gaps). Whatever still fails is reported as UNRESOLVED in the verdict block, not routed again. Then complete Step 7.5 unconditionally and report."
+
+Record the round in STAGE.md `## Deviations`: `- **Pass A revision:** {FEAT-IDs} — Brief check(s) {n} failed; one analyst revision round, re-validated {clean | with UNRESOLVED: {summary}}`. An UNRESOLVED Brief does not halt the batch — it is recorded here, and Pass D and Gate A catch what the specs inherit from it. No second revision round.
+
+The context-package files stay in `.n2b/tracking/stages/s3-specify/context/` for the rest of the stage — Pass D's `[MISSING-SPEC]` analyst re-spawn reads them.
 
 **Per-feature tracking file creation:** After the batch completes successfully, iterate over the batch's feature folders and create one tracking file per feature (shape per the `feature-tracker.md` template). Process per-analyst (sequentially), writing each file before moving to the next:
 
@@ -1102,7 +1148,7 @@ Wait for the Reconciler to complete.
 **Gap routing:** After the Reconciler finishes, check its output for gap classifications:
 
 - **`[STRUCTURAL-GAP]` findings:** Re-spawn the affected Feature Spec Producer for that feature with the gap context (same model as the original producer spawn). The re-spawn prompt must include: which spec needs fixing, what is missing, and the reconciler's evidence. Maximum 1 re-spawn cycle per feature.
-- **`[MISSING-SPEC]` findings:** Re-spawn the affected feature's Feature Analyst (via a new Agent call, model from the `feature-analyst` line of the model resolution output) to update the Brief, then spawn a Feature Spec Producer for the new spec (its usual resolved model). Maximum 1 cycle.
+- **`[MISSING-SPEC]` findings:** Re-spawn the affected feature's Feature Analyst (via a new Agent call, model from the `feature-analyst` line of the model resolution output; its context package is `.n2b/tracking/stages/s3-specify/context/{FEAT-ID}-context.md`, written in Pass A) to update the Brief, then spawn a Feature Spec Producer for the new spec (its usual resolved model). Maximum 1 cycle.
 - **`[ALIGNMENT]` findings:** Already resolved by the Reconciler directly. No action needed.
 
 If any re-spawns occurred, run a final reconciliation pass (alignment-only) to verify consistency.
@@ -1556,7 +1602,7 @@ Update s3-specify/STAGE.md frontmatter:
 Update s3-specify/STAGE.md body:
 - Tick all remaining unchecked checkboxes
 - `## Gates` section: replace all `- [ ]` with `- [x]` for passed categories, add `Result: **passed**` with 6-category evidence table
-- `## Performance` section: fill Duration (cumulative across all invocations, from started to now), Agents spawned (Requirements Architect spawns across all Pass A batches + all Feature Analysts + all Feature Spec Producers + Spec Quality Reviewers when spawned + Cross-Reference Reconciler), Retries, Features processed, Resumes count, Checkpoints count (from frontmatter `checkpoints`)
+- `## Performance` section: fill Duration (cumulative across all invocations, from started to now), Agents spawned (Requirements Architect spawns across all Pass A batches — two per batch, three with a revision round — + all Feature Analysts + all Feature Spec Producers + Spec Quality Reviewers when spawned + Cross-Reference Reconciler), Retries, Features processed, Resumes count, Checkpoints count (from frontmatter `checkpoints`)
 - `## Output` section: list every file produced: feature folders with spec counts, feature-dependency-map.md, reconciliation-log.md, platform-parameters.md (when Pass D produced it, with its parameter count), and — when `design_system_source: user` — the design-system/ passthrough with its file count
 
 After this step, s3-specify/STAGE.md is a **permanent receipt**. Do not modify it again.
@@ -1745,9 +1791,9 @@ Partial output is preserved. Do NOT delete any files that were successfully prod
 - **Pass-scoped invocations:** every invocation runs exactly one pass for at most BATCH_SIZE features; an invocation never spans a pass boundary — completing a pass's final batch still checkpoints and ends the invocation; the only checkpoint-free invocation is the terminal one (all features `done` → Pass D + Gate A + stage-complete); there is NO single-invocation path for any project size
 - **Current-pass derivation** (Step 1.5): classified fresh from disk truth every invocation over the FULL feature list from product-features.md — unanalyzed (no folder/tracker; invalid-Brief folders wiped) → Pass A; analyzed/wiped-incomplete → Pass B; review-pending → Pass C; all done → terminal; passes strictly sequential; trackers missing against a valid Brief are recreated from the Brief; nothing persisted about pass position beyond `current_pass` (informational)
 - stage-resume classifies per-feature FEAT-NN-{slug}.md files: done features skipped; in `independent` mode, in-progress features with all expected specs on disk are review-pending (specs preserved, review re-run only); other in-progress features wiped for re-spec; increments `resumed` counter in STAGE.md frontmatter; displays the same per-pass progress table (`✓ ● ○`, run R of ~T) and `This run: Pass {X} — batch {X'} of {Y}` line before the pass banner
-- **Pass A batching** (Step 3): batch selected from unanalyzed features by product-features.md `**Priority:**` tier (Core → Important → Nice-to-Have, numeric within tier); `features_total` set from product-features.md count on the first Pass A invocation; Architect spawned batch-scoped (feature-scope list in prompt; dependency map built only when absent, covering ALL features; External Touchpoints full coverage check only on the FINAL_A_BATCH prompt); per-feature trackers created per-analyst for the batch; Pass A checkbox ticks only when every feature has a tracker
+- **Pass A batching** (Step 3): batch selected from unanalyzed features by product-features.md `**Priority:**` tier (Core → Important → Nice-to-Have, numeric within tier); `features_total` set from product-features.md count on the first Pass A invocation; Architect spawned batch-scoped twice — prepare (Steps 1–5, writes `context/{FEAT-ID}-context.md` packages) and validate (Steps 7–7.5, returns a `## Brief Validation` verdict block, never spawns) — with the workflow spawning the Feature Analysts in between from the package files (model from the `feature-analyst` line, maxTurns 80); dependency map built only when absent, covering ALL features; External Touchpoints full coverage check only on the FINAL_A_BATCH validate prompt; REVISE verdicts route ONE analyst revision round then one re-validation (UNRESOLVED recorded in Deviations, never a second round); per-feature trackers created per-analyst for the batch; Pass A checkbox ticks only when every feature has a tracker
 - Per-feature FEAT-NN-{slug}.md files created per-analyst during Pass A batch result processing — written to `.n2b/tracking/stages/s3-specify/` using the feature-tracker.md template shape; each contains feature ID, feature_name, `status: not-started`, `specs_expected: {N}`, `specs_written: 0`, `quality_passed: false`, and Specs checkbox list
-- Pass A architect prompt carries the context-package requirements (C-14 Functional Depth fields + Phase, C-15 Access Matrix slice, C-16 NFR/Dependencies slices, C-17 journey coverage, success-metrics slice), the dependency-map requirements (External Touchpoints + Contention/Data Sensitivity), and the extended Brief validation (Roles Touched, six frontmatter counts); maxTurns 150
+- Pass A architect prompts carry the context-package requirements (C-14 Functional Depth fields + Phase, C-15 Access Matrix slice, C-16 NFR/Dependencies slices, C-17 journey coverage, success-metrics slice) and the dependency-map requirements (External Touchpoints + Contention/Data Sensitivity) on the prepare prompt (maxTurns 150), and the extended Brief validation (Roles Touched, six frontmatter counts) on the validate prompt (maxTurns 80)
 - **Pass B batching** (Step 4): runs only when all features analyzed and some await specs; batch by feature-overview.md `priority_tier` (Core → Important → Nice-to-Have, numeric within tier); producers spawned in parallel for batch features only; producer prompts list the five-type methodology/template lookup; maxTurns 120; as each producer returns, the workflow runs the mechanical acceptance-criteria shape check (backlog-schema §6 line shape + `acceptance_criteria_count` reconciliation) and re-spawns that producer at most once, scoped to the named lines (maxTurns 40), in BOTH review modes; NO reviewer spawns in a Pass B invocation
 - Producer Phase 2.5 self-review runs in BOTH spec_review modes
 - In `self-only` mode: producer completion sets tracker `status: done`, `quality_passed: true`, dashboard Quality `self-only`; Pass C never runs as an invocation; the terminal invocation annotates the Pass C checkbox as skipped

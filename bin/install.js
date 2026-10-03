@@ -341,9 +341,9 @@ function stampRuntime(content, rt) {
 
 /**
  * R6 — subagent types for runtimes with native agent files. Every spawn in
- * the workflows (and the nested Feature Analyst spawn in the Requirements
- * Architect contract) is written runtime-neutrally as "Read the agent
- * contract at `.claude/n2b/agents/stage-N/<file>.md`". Where the runtime
+ * the workflows is written runtime-neutrally as "Read the agent
+ * contract at `.claude/n2b/agents/stage-N/<file>.md`" (only workflows
+ * spawn: every agent contract is a leaf, #22). Where the runtime
  * routes through native agent files, append the agent to call:
  * `(subagent_type: "n2b-<role>")`. `roleByContract` maps
  * `stage-N/<file>.md` → catalog role (built from model-catalog.json by
