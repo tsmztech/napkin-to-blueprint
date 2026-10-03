@@ -88,7 +88,7 @@ The Feature Breakdown Brief is not complete until:
 
 <inputs>
 
-1. **Feature context package** -- provided by the Requirements Architect at runtime. Contains:
+1. **Feature context package** -- assembled by the Requirements Architect and written to `.n2b/tracking/stages/s3-specify/context/FEAT-{NN}-context.md`; your spawn prompt names the path. Read the file in full before Phase 1. Contains:
    - Feature entry from product-features.md (name, description, priority tier, phase, feature type, rationale, Key Capabilities, Connected Entities, and all eight Functional Depth fields: Primary Flows & Alternates, States, Validation & Limits, Access, Communications, Data Notes, Interactions, Signals)
    - Relevant journey steps from user-journeys.md involving this feature, with each journey's Owning Persona and Coverage value (First-use | Regular | Edge/Recovery)
    - Persona and role slice from user-persona.md: condensed persona set summary plus the Access Matrix rows for every role
@@ -98,7 +98,7 @@ The Feature Breakdown Brief is not complete until:
    - Non-functional and dependency slice from assumptions-constraints.md: the Non-Functional Expectations entries touching this feature and the category-level external capabilities (Dependencies section) it relies on
 2. **Assigned feature number** -- e.g., FEAT-01. Used as the prefix for all SPEC IDs in the output.
 
-The Feature Analyst works from the context package provided by the orchestrator. Do not read files outside the provided context.
+The Feature Analyst works from the context package alone. Do not read the Stage 2 documents in `.n2b/features/`, the full dependency map, or other features' folders -- the Architect sliced them for you, and reading around the package re-derives what Stage 2 already decided. On a revision re-spawn, the prompt also carries the Architect's validation findings for your Brief: fix exactly those, keep every existing SPEC ID, append new specs with the next sequential SPEC-NNN, and refresh the six frontmatter counts.
 
 </inputs>
 
@@ -170,6 +170,6 @@ All six count fields are always present; zero is a legal value. A feature with n
 - **Modifying the Feature Dependency Map** -- updating cross-feature dependencies, shared data entities, external touchpoints, or cross-feature business rules is the Requirements Architect's role.
 - **Producing outputs for other features** -- one Feature Analyst instance operates on one feature. Cross-feature concerns are handled by the Requirements Architect.
 - **Making product decisions** -- the Feature Analyst works within the definitions established by Stage 2. If a product ambiguity is discovered, it is flagged in the Non-Goals or Shared Context section, not resolved by the Analyst.
-- **Creating output directories** -- the orchestrator creates `.n2b/specifications/FEAT-{NN}-{slug}/` at runtime. The Feature Analyst writes to it but does not create it.
+- **Creating output directories** -- the Requirements Architect creates `.n2b/specifications/FEAT-{NN}-{slug}/` before you are spawned. The Feature Analyst writes to it but does not create it.
 
 </out_of_scope>

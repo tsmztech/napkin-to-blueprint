@@ -244,7 +244,7 @@ test('R6 rewriteSubagentTypes: appends subagent_type only where agentKind is set
   for (const [k, v] of ocMap) for (const m of v.toString().matchAll(/contract at `\.opencode\/n2b\/agents\/(stage-\d\/[a-z0-9-]+\.md)`( \(subagent_type: "n2b-[a-z-]+"\))?/g)) mentions.push({ file: k, contract: m[1], annotated: Boolean(m[2]) });
   assert.ok(mentions.length >= 15, `expected the workflow spawns, got ${mentions.length}`);
   for (const m of mentions) assert.ok(m.annotated, `${m.file}: ${m.contract} not annotated`);
-  assert.ok(mentions.some((m) => m.file === 'n2b/agents/stage-3/requirements-architect.md'), 'nested Feature Analyst spawn annotated too');
+  assert.ok(!mentions.some((m) => m.file.startsWith('n2b/agents/')), `no agent contract spawns another agent — every n2b agent is a leaf (#22): ${mentions.filter((m) => m.file.startsWith('n2b/agents/')).map((m) => m.file).join(', ')}`);
   for (const rt of [codex, cursor]) for (const v of buildInstallMap(readSource(REPO), rt).values()) assert.ok(!/subagent_type: "n2b-[a-z][a-z-]*"/.test(v.toString()), `${rt.id} must not carry a concrete subagent_type (the Transport Rules prose template is fine)`);
 });
 
