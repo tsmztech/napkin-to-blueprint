@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [0.4.1] - 2026-10-02
+## [0.4.1] - 2026-10-03
 
 ### Changed
 - Codex is no longer labelled experimental: the `(experimental)` tag is gone from the README badge, runtime tables, requirements, and `--help`, along with the "not yet verified live" notes on Codex and OpenCode; the `.agents/skills/` troubleshooting tip stays.
