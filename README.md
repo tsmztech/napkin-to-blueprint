@@ -51,6 +51,18 @@ Five slash commands, run in order, inside your project — the pipeline pictured
 
 Stages 1–3 mature the **product**: what it is, who it's for, and every feature specified in depth. Stage 4 rides on top of the finished features and answers **"how could this be built?"** — a recommended architecture plus documented alternatives, chosen on merit from the full landscape of modern cloud, SaaS, and API options. Stage 5 renders the finished blueprint for whichever tool or team will consume it.
 
+## Examples
+
+Want to see the output before you install? The [showcase repo](https://github.com/tsmztech/napkin-to-blueprint-showcase) holds real product ideas run end to end through n2b and published exactly as the pipeline wrote them: napkin, brief, features, specs, architecture, and the export packs to build from.
+
+| Run | The idea | Build it with |
+|-----|----------|---------------|
+| [Chairtime](https://github.com/tsmztech/napkin-to-blueprint-showcase/tree/main/chairtime) | Booking link + card deposits for solo beauty pros | [lovable-pack](https://github.com/tsmztech/napkin-to-blueprint-showcase/blob/main/chairtime/.n2b/exports/lovable-pack/README.md) |
+| [Plateful](https://github.com/tsmztech/napkin-to-blueprint-showcase/tree/main/plateful) | Family meal planner with AI suggestions | [agent-workspace](https://github.com/tsmztech/napkin-to-blueprint-showcase/blob/main/plateful/.n2b/exports/agent-workspace/README.md) |
+| [Clientroom](https://github.com/tsmztech/napkin-to-blueprint-showcase/tree/main/clientroom) | Client portal + invoicing for freelancers | [speckit](https://github.com/tsmztech/napkin-to-blueprint-showcase/blob/main/clientroom/.n2b/exports/speckit/README.md) |
+
+New runs are added over time: other ideas, other runtimes, other model profiles.
+
 ## Why blueprint first?
 
 Everyone with an idea now jumps straight into an AI build tool. It works — until it doesn't: AI gets you 70% of the way fast, and then the missing groundwork surfaces. No research, no feature definition, no data model, no acceptance criteria — the front half of the software development lifecycle got skipped, and the build drifts.

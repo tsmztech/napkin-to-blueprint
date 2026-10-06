@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- README: an **Examples** section linking the [showcase repo](https://github.com/tsmztech/napkin-to-blueprint-showcase), with each run's idea and the export pack to build it from.
+
 ## [0.4.1] - 2026-10-03
 
 ### Changed
