@@ -5,6 +5,7 @@
 [![npm](https://img.shields.io/npm/v/napkin-to-blueprint)](https://www.npmjs.com/package/napkin-to-blueprint)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![works with Claude Code · Cursor · OpenCode · Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20OpenCode%20%C2%B7%20Codex-d97757)](#quickstart)
+[![Mentioned in Awesome Claude Code](https://awesome.re/mentioned-badge.svg)](https://github.com/hesreallyhim/awesome-claude-code)
 
 <a href="https://napkintoblueprint.com"><img src="assets/n2b-banner.svg" width="100%" alt="n2b pipeline: a raw idea on a napkin goes through five stages inside your AI coding agent — 1 Intake (interview → BRIEF.md), 2 Define (research, personas → features/), 3 Specify (per-feature specs → specifications/), 4 Architect (stack + DB schema → architecture/) — each passing a quality gate, to a complete blueprint in .n2b/. Optional Stage 5 Export renders it for AI app builders (Lovable, v0, Bolt, Replit), AI coding agents (Cursor, Codex, Devin), spec-driven kits (Spec Kit, Task Master, BMAD), issue trackers (Jira, backlog.json), or your dev team. n2b covers the planning half of your project timeline, between idea and build."></a>
 
