@@ -31,8 +31,9 @@ From the spawn prompt take: `PACKAGE_ROOT` (canonical package root), `MANIFEST` 
 2. Define the template's pinned helpers in your shell session: `manifest_paths` and `extract_exclusions`.
 3. Derive the inventory: `INV_COUNT=$(manifest_paths "$MANIFEST" | wc -l | tr -d ' ')`. If `INV_COUNT` is 0, fail loudly -- the manifest is the copy's only source; never fall back to a hardcoded or `find`-derived file list.
 4. Verify every inventory path exists non-empty under `PACKAGE_ROOT` (bash loop; fail loudly naming any missing path -- never render around a hole). Also verify the files your authored prose is grounded in: `BRIEF.md`, `features/product-features.md`, `features/scope-boundaries.md`, `features/assumptions-constraints.md`, `specifications/feature-dependency-map.md`, `architecture/technical-architecture.md`, `architecture/database-schema.md`.
-5. Detect the design posture, in this order: `specifications/design-system/` directory exists → posture 1 (supplied design system, binding); else `specifications/design-system.md` file exists → posture 2 (legacy single file, provenance-noted); else → posture 3 (design-agnostic).
-6. `mkdir -p "$OUTPUT_DIR/docs/blueprint"`, plus the key's wrapper directories: `bolt-pack` → `"$OUTPUT_DIR/.bolt"`; `replit-pack` → `"$OUTPUT_DIR/.agents/skills/build-conventions" "$OUTPUT_DIR/.agents/skills/design-posture"`.
+5. Resolve the key's `{Tool}` name and `{STACK_FIT_LINE}` from the template's Stack fit register (Global Assembly Rules) -- the line is rendered verbatim wherever the template places it (KNOWLEDGE.md, Prompt 0, the constitution §1, README `## Stack fit`; the feature prompts carry its short closing sentence). It is template content, never reworded or shortened.
+6. Detect the design posture, in this order: `specifications/design-system/` directory exists → posture 1 (supplied design system, binding); else `specifications/design-system.md` file exists → posture 2 (legacy single file, provenance-noted); else → posture 3 (design-agnostic).
+7. `mkdir -p "$OUTPUT_DIR/docs/blueprint"`, plus the key's wrapper directories: `bolt-pack` → `"$OUTPUT_DIR/.bolt"`; `replit-pack` → `"$OUTPUT_DIR/.agents/skills/build-conventions" "$OUTPUT_DIR/.agents/skills/design-posture"`.
 
 ### Step 1: Copy the Blueprint, Verbatim
 
@@ -68,11 +69,11 @@ The script prints the ORDER, BROKEN, SPEC, SC, and TOTALS rows that feed Steps 4
 
 ### Step 4: Author KNOWLEDGE.md
 
-Per the template's mapping table and skeleton: entirely `- ` bullets under `## ` headings, every content bullet carrying a canonical ID or a `[S: {rel-path}]` tag (VP-2 counts unreferenced bullets -- the count must be 0); the architecture section leading with the recommendation-is-binding bullet and citing ADR IDs verbatim; one feature bullet per ORDER row (IDs, names, tiers script-verbatim); the DO-NOT-BUILD section carrying every SC ID from the script's SC rows with CONDENSED one-line labels (the verbatim text lives in the wrapper file -- protecting the budget); ONE design-posture bullet matching Step 0's detection; the depth pointer. Hard cap `wc -c` ≤ 10,000; target 8,500-9,500. When trimming: condense labels and merge bullets, never drop an SC ID and never strip a bullet's back-reference.
+Per the template's mapping table and skeleton: entirely `- ` bullets under `## ` headings, every content bullet carrying a canonical ID or a `[S: {rel-path}]` tag (VP-2 counts unreferenced bullets -- the count must be 0); the architecture section leading with the recommendation-is-binding bullet and citing ADR IDs verbatim; one feature bullet per ORDER row (IDs, names, tiers script-verbatim); the DO-NOT-BUILD section carrying every SC ID from the script's SC rows with CONDENSED one-line labels (the verbatim text lives in the wrapper file -- protecting the budget); ONE design-posture bullet matching Step 0's detection; the depth pointer. The architecture section closes with the key's stack-fit bullet -- `- Stack fit — {STACK_FIT_LINE} [S: README.md § Stack fit]`, verbatim from the register. Hard cap `wc -c` ≤ 10,000; target 8,500-9,500. When trimming: condense labels and merge bullets, never drop an SC ID, never strip a bullet's back-reference, and never trim the stack-fit bullet.
 
 ### Step 5: Author PROMPTS.md, Then Prove It (check mode)
 
-Per the template's mapping table and skeleton: the how-to-use intro; one order-note line per BROKEN row (both FEAT IDs on the line), shape keyed by the row's MUTUAL|FORWARD field -- the `↔` glyph asserts mutuality and appears ONLY on MUTUAL lines, FORWARD lines use the directional depends-on shape (check mode enforces this) -- or the none-line; `## Prompt 0 — Plan-mode seed` (distilled summary, the FEAT list from ORDER rows as IDs + names, NO SPEC or AC IDs anywhere in it); then exactly one `## Prompt {n} — {Feature Name} (FEAT-NN)` per ORDER row, in order -- feature summary from the canonical description, dependencies line, one bolded spec-digest bullet per SPEC row with its Purpose line verbatim (copy it exactly, including any other feature's SPEC IDs it cross-references -- the digest is the one place those are allowed; never truncate or strip them), the architecture-rules line, and the definition-of-done block in the pinned shapes (per-spec lines with script-verbatim AC counts, ranges, and paths; the `All {n} acceptance criteria above` total line). Every SPEC/AC ID inside prompt N belongs to prompt N's FEAT -- the digests and definition-of-done give you no reason to name another feature's specs, so never do. ACs are not bulk-transcluded; an exemplar AC, if you include one, is verbatim from its spec file.
+Per the template's mapping table and skeleton: the how-to-use intro; one order-note line per BROKEN row (both FEAT IDs on the line), shape keyed by the row's MUTUAL|FORWARD field -- the `↔` glyph asserts mutuality and appears ONLY on MUTUAL lines, FORWARD lines use the directional depends-on shape (check mode enforces this) -- or the none-line; `## Prompt 0 — Plan-mode seed` (distilled summary, the FEAT list from ORDER rows as IDs + names, the `Stack fit: {STACK_FIT_LINE}` line verbatim, NO SPEC or AC IDs anywhere in it); then exactly one `## Prompt {n} — {Feature Name} (FEAT-NN)` per ORDER row, in order -- feature summary from the canonical description, dependencies line, one bolded spec-digest bullet per SPEC row with its Purpose line verbatim (copy it exactly, including any other feature's SPEC IDs it cross-references -- the digest is the one place those are allowed; never truncate or strip them), the architecture-rules line closing with the template's stack-fit sentence (`{Tool}` substituted), and the definition-of-done block in the pinned shapes (per-spec lines with script-verbatim AC counts, ranges, and paths; the `All {n} acceptance criteria above` total line). Every SPEC/AC ID inside prompt N belongs to prompt N's FEAT -- the digests and definition-of-done give you no reason to name another feature's specs, so never do. ACs are not bulk-transcluded; an exemplar AC, if you include one, is verbatim from its spec file.
 
 Then run the parse-back and delete the script:
 
@@ -85,7 +86,7 @@ A `FAIL (parse-back):` diagnostic means PROMPTS.md is defective -- fix the named
 
 ### Step 6: Author the Wrapper Files (requested key only)
 
-Per the template's shared constitution skeleton plus the key's block -- every primary constitution file carries: the per-key framing paragraph, the recommended-architecture-is-binding section, the conventions section, the `## 3. DO-NOT-BUILD` heading + framing sentence followed by the **shell-extracted** `## Explicit Exclusions` section of `features/scope-boundaries.md` appended verbatim via `extract_exclusions` -- every SC entry with its rationale, never retyped -- the ONE design-posture statement matching Step 0's detection, and the pointer map.
+Per the template's shared constitution skeleton plus the key's block -- every primary constitution file carries: the per-key framing paragraph, the recommended-architecture-is-binding section (closing with the key's `{STACK_FIT_LINE}` paragraph, verbatim), the conventions section, the `## 3. DO-NOT-BUILD` heading + framing sentence followed by the **shell-extracted** `## Explicit Exclusions` section of `features/scope-boundaries.md` appended verbatim via `extract_exclusions` -- every SC entry with its rationale, never retyped -- the ONE design-posture statement matching Step 0's detection, and the pointer map.
 
 - `lovable-pack`: `AGENTS.md` (root).
 - `v0-pack`: `INSTRUCTIONS.md`.
@@ -94,7 +95,7 @@ Per the template's shared constitution skeleton plus the key's block -- every pr
 
 ### Step 7: Author README.md
 
-Written LAST among the authored files so every count and pointer is real, per the requested key's template skeleton: the orientation paragraph (with `PKG_VERSION` and today's date), then the key's setup / Plan-then-build / gotcha sections. Every tool-behavior claim comes from the skeleton's research-pinned facts -- never add a tool claim the template does not carry, and never assert anything the research register lists as unverified (no `.lovable/plan.md`, no over-10k Knowledge behavior, no unpublished v0 caps, no Bolt ZIP-import path, no Replit PDF-attach claim).
+Written LAST among the authored files so every count and pointer is real, per the requested key's template skeleton: the orientation paragraph (with `PKG_VERSION` and today's date), then the key's setup / Plan-then-build / `## Stack fit` / gotcha sections -- for `lovable-pack` the setup steps run in the skeleton's order (create project → paste KNOWLEDGE.md → connect GitHub and commit AGENTS.md + docs/blueprint/ → Prompt 0 → feature prompts) with the paste-the-spec-section fallback; every key's Gotchas carry the provenance line about EXPORT-RECEIPT.md and FIDELITY-REPORT.md. Every tool-behavior claim comes from the skeleton's research-pinned facts (the Stack fit register included) -- never add a tool claim the template does not carry, and never assert anything the research register lists as unverified (no `.lovable/plan.md`, no over-10k Knowledge behavior, no unpublished v0 caps, no Bolt ZIP-import path, no Replit PDF-attach claim).
 
 ### Step 8: Self-Checks
 
@@ -152,6 +153,15 @@ done
 grep -qi 'design posture' "$OUTPUT_DIR/$CONST" || echo "design-posture section missing from $CONST"
 grep -qi 'binding' "$OUTPUT_DIR/$CONST" || echo "recommended-architecture-binding statement missing from $CONST"
 
+# 5b. Stack fit rendered on every surface the template names (issue #27): the register
+#     line's opening words in KNOWLEDGE.md, the constitution, Prompt 0, and README's section
+SF_HEAD=$(printf '%s' "$STACK_FIT_LINE" | cut -c1-40)
+for f in KNOWLEDGE.md "$CONST" PROMPTS.md README.md; do
+  grep -qF "$SF_HEAD" "$OUTPUT_DIR/$f" || echo "stack-fit line missing from $f"
+done
+grep -q '^## Stack fit' "$OUTPUT_DIR/README.md" || echo "README.md has no ## Stack fit section"
+grep -q 'EXPORT-RECEIPT.md and FIDELITY-REPORT.md are provenance' "$OUTPUT_DIR/README.md" || echo "README.md Gotchas lack the provenance line"
+
 # 6. Verbatim-copy fidelity (mirrors VP-6): count parity + spot byte-compare (first,
 #    middle, last rows); bolt only -- the legacy mirror is byte-identical
 COPIED=$(find "$OUTPUT_DIR/docs/blueprint" -type f | wc -l | tr -d ' ')
@@ -203,7 +213,8 @@ Before reporting completion, verify:
 - KNOWLEDGE.md is ≤ 10,000 characters with zero unreferenced content bullets, every SC ID present as a condensed label, and exactly one posture bullet
 - PROMPTS.md carries Prompt 0 (no SPEC/AC IDs) plus exactly one prompt per FEAT in the computed order, with strict per-feature SPEC/AC attribution (spec digests carry their Purpose verbatim, cross-references included), pinned-shape definitions-of-done summing to the canonical AC count, and every broken edge disclosed in the intro
 - The requested key's wrapper set -- and no other key's -- was rendered; the primary constitution file carries the complete verbatim `## Explicit Exclusions` extraction, the binding-architecture statement, exactly one design-posture statement, and the pointer map; bolt's `.bolt/prompt` is a byte copy of `agents.md` and `.bolt/ignore` matches the pinned contents
-- README.md carries only research-pinned tool claims for its key (Lovable paste-only intake + 10k cap + post-repo AGENTS.md; v0 Source/Instruction split + secret scrub; Bolt GitHub-import + settings-field Knowledge + no in-app branch merging; Replit replit.md-not-AGENTS.md + Plan Mode entry + effort-billing warning) and nothing the register lists as unverified
+- README.md carries only research-pinned tool claims for its key (Lovable paste-only intake + 10k cap + connect-GitHub-then-commit-AGENTS.md before Prompt 0, with the paste-the-spec fallback; v0 Source/Instruction split + secret scrub; Bolt GitHub-import + settings-field Knowledge + no in-app branch merging; Replit replit.md-not-AGENTS.md + Plan Mode entry + effort-billing warning), a `## Stack fit` section built from the template's register, the provenance Gotchas line, and nothing the register lists as unverified
+- The key's `{STACK_FIT_LINE}` appears verbatim in KNOWLEDGE.md's architecture section, the constitution §1, Prompt 0, and README `## Stack fit`; every feature prompt's architecture-rules line closes with the stack-fit sentence
 - All Step 8 shell checks pass; authored numbers are Step 2 shell-derived values
 - No file was written outside `OUTPUT_DIR`; the transient script was deleted; `FIDELITY-REPORT.md` and `EXPORT-RECEIPT.md` were not written at all
 
@@ -250,6 +261,7 @@ Into `OUTPUT_DIR`, exactly the formatter-owned C-35 file set for the resolved ke
 - Retype canonical content through the model instead of shell-copying or shell-extracting it -- even one file, even to "fix" formatting
 - Strip, normalize, or edit the frontmatter or body of any copied blueprint file (byte-identity is the contract)
 - Write a KNOWLEDGE.md content bullet without a canonical ID or `[S: ]` tag, or let the file exceed 10,000 characters
+- Reword, shorten, or omit the key's `{STACK_FIT_LINE}` on any surface the template places it, or invent a stack mapping of your own (the register's line is the whole of what may be said about the tool's stack)
 - Assert a tool behavior the template's research-pinned facts do not carry, or anything the register lists as unverified (`.lovable/plan.md`, over-10k Knowledge behavior, unpublished v0 caps, Bolt native ZIP import, `.bolt/config.json`, Replit PDF-attach)
 - Render another key's wrapper files, or emit settings-field content as files
 - Choose an architecture alternative, resolve an open question, or soften a scope exclusion while condensing

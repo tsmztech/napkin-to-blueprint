@@ -667,7 +667,7 @@ n2b > EXPORT COMPLETE
      {AC_COUNT} acceptance criteria reconciled against the canonical
      package (version {PKG_VERSION})
 
-**Next step:** {the consumer-native next step for this target — take it from the target's registry entry when one is defined; for dev-brief: "Open {OUT_DIR}00-README.md — it gives every role its reading order. COMBINED.md is the single-file render for PDF, print, or email."; generic fallback for targets without registry copy: "Open {OUT_DIR} and start with its entry/README file."}
+**Next step:** {the consumer-native next step for this target — take it from the target's registry entry when one is defined; for dev-brief: "Open {OUT_DIR}README.md — it gives every role its reading order. COMBINED.md is the single-file render for PDF, print, or email."; generic fallback for targets without registry copy: "Open {OUT_DIR} and start with its entry/README file."}
 
 {Only when REMAINING is non-empty:}
 **Other export formats** (one per run):
