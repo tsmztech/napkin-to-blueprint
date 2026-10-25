@@ -123,7 +123,12 @@ canonical source:
    prose). It may orient, count, and point; it may never introduce a product or technical
    claim absent from the canonical package, resolve an open question, soften a scope
    exclusion, or state a preference among architecture alternatives. Each violation is a
-   finding quoting the invented claim.
+   finding quoting the invented claim. Tool-environment facts the target template pins
+   for its consumer (the vibe-pack templates' Stack fit register — what Lovable, v0, Bolt
+   or Replit natively builds, plus the shared rule for what the binding architecture
+   governs) are template content rendered verbatim, not authored claims: compare them to
+   the template at `TEMPLATE_PATH`, and raise a finding only where the render deviates
+   from the pinned line or extends it with a claim of its own.
 
 ---
 

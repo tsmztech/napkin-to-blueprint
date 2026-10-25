@@ -115,6 +115,34 @@ base name IS the resolved key. The shared core (`KNOWLEDGE.md`, `PROMPTS.md`,
 across keys is neither promised nor checked (C-35); it is guaranteed only where `cmp`
 enforces it, the `docs/blueprint/` copy.
 
+### Stack fit — per-key lines (pin these exactly)
+
+Every pack tells the tool that the recommended architecture is binding, and every one of
+these tools builds on a native stack of its own — a user who hits that contradiction at
+Prompt 0 has no way to know whether to adapt or stop (issue #27). The resolution is one
+rule, stated once per key and rendered wherever the binding language appears: the
+constitution §1, KNOWLEDGE.md's `## Architecture (binding)`, Prompt 0, every feature
+prompt's architecture-rules line, and the README's `## Stack fit` section.
+
+**The rule (shared, every key):** the binding architecture governs the data model, the
+business rules, the integrations, the scope exclusions and every ADR the tool can honour.
+A framework, runtime or hosting choice the tool cannot build is replaced by the tool's
+native equivalent — each substitution is recorded, and the data model, rules and
+integrations are never redesigned around it.
+
+| Key | `{Tool}` | Native stack (research-pinned fact) | `{STACK_FIT_LINE}` |
+|---|---|---|---|
+| `lovable-pack` | Lovable | Generates React + Vite + TypeScript (Tailwind, shadcn/ui) with Supabase as its backend integration; does not generate Next.js or other server frameworks. Pinned 2026-10-24: lovable.dev/faq/capabilities/tech-stack and …/lovable-nextjs-support | Lovable builds React + Vite + TypeScript on Supabase. The binding architecture governs the data model, business rules, integrations, scope exclusions and every ADR Lovable can honour; a framework, runtime or hosting choice Lovable cannot build is replaced by Lovable's native equivalent — record each substitution, and never redesign the data model, rules or integrations around it. |
+| `v0-pack` | v0 | Generates Next.js + React + Tailwind + shadcn/ui (Vercel's stack). Pinned: v0 docs | v0 builds Next.js + React + Tailwind + shadcn/ui. The binding architecture governs the data model, business rules, integrations, scope exclusions and every ADR v0 can honour; a framework, runtime or hosting choice v0 cannot build is replaced by v0's native equivalent — record each substitution, and never redesign the data model, rules or integrations around it. |
+| `bolt-pack` | Bolt | Runs in WebContainers — JavaScript/TypeScript only: Node.js backends, React/Vue/Svelte/Next.js/Astro/Remix fronts, Supabase via its connect flow; no Python, Go, Ruby or PHP runtime. Pinned: Bolt docs (re-verify each phase, P4 step 3) | Bolt builds JavaScript/TypeScript only — Node.js backends, React/Vue/Svelte/Next.js fronts, Supabase for data and auth. The binding architecture governs the data model, business rules, integrations, scope exclusions and every ADR Bolt can honour; a framework, runtime or hosting choice Bolt cannot build is replaced by Bolt's native equivalent — record each substitution, and never redesign the data model, rules or integrations around it. |
+| `replit-pack` | Replit | Replit Agent builds Node.js, Python and other server runtimes with a Neon-backed Postgres database; most blueprint stacks run as specified. Pinned: Replit docs (re-verify each phase, P4 step 3) | Replit Agent builds Node.js, Python and other runtimes on Neon Postgres, so most of this architecture runs as specified. The binding architecture governs the data model, business rules, integrations, scope exclusions and every ADR Replit can honour; a framework, runtime or hosting choice Replit cannot build is replaced by Replit's native equivalent — record each substitution, and never redesign the data model, rules or integrations around it. |
+
+The line is rendered **verbatim** for the resolved key — it is template content (a
+tool-environment fact plus the rule), not an authored product or technical claim, which is
+why the fidelity checker's glue-prose rule does not flag it. It never names a documented
+architecture alternative and never picks one: substituting a tool's native stack for a
+choice the tool cannot run is not choosing among the blueprint's alternatives.
+
 ### Shell idioms (pin these exactly)
 
 **Manifest inventory paths** — the ONLY source of the blueprint file list (no hardcoded
@@ -205,7 +233,9 @@ headings — every content bullet carries a canonical ID (FEAT / SPEC / AC / XBR
 SC / ASMP pattern) or a compact `[S: {package-relative path}]` source tag, which is what
 makes VP-2's pointer-coverage check mechanical. No indented sub-bullets; no bullet without
 a back-reference. When trimming to fit: condense labels and merge bullets, never drop an
-SC ID (VP-5 needs every one here) and never let a bullet lose its back-reference.
+SC ID (VP-5 needs every one here) and never let a bullet lose its back-reference. The
+`## Architecture (binding)` section's closing stack-fit bullet (the key's pinned
+`{STACK_FIT_LINE}`, ~330 characters) is part of the budget — plan for it, never trim it.
 
 ### The pinned prompt shapes (mechanical anchors — pin these exactly)
 
@@ -509,7 +539,7 @@ hard; target 8,500–9,500 (the budget rules above).
 | 2 | `## What this is` | 2–4 bullets: product purpose, target users/roles, core value — each tagged `[S: BRIEF.md]` | authored digest |
 | 3 | `## Domain glossary` | one bullet per term a builder must not misread — `**{Term}** — {one line} [S: {rel-path}]` | authored digest |
 | 4 | `## Data model — core entities` | one bullet per core entity: `**{Entity}** — {one-line role} [S: architecture/database-schema.md]` | authored digest |
-| 5 | `## Architecture (binding)` | first bullet: the recommended architecture is binding, documented alternatives are informational only `[S: architecture/technical-architecture.md]`; then one bullet per core stack area: `{Area}: {choice} (ADR-NNN)` — ADR IDs verbatim | authored, ADR IDs shell-derived |
+| 5 | `## Architecture (binding)` | first bullet: the recommended architecture is binding, documented alternatives are informational only `[S: architecture/technical-architecture.md]`; then one bullet per core stack area: `{Area}: {choice} (ADR-NNN)` — ADR IDs verbatim; closing bullet: `Stack fit — {STACK_FIT_LINE} [S: README.md § Stack fit]` — the key's pinned line, verbatim | authored, ADR IDs shell-derived, stack-fit line template-pinned |
 | 6 | `## Features — build order` | one bullet per FEAT in ORDER-row order: `FEAT-NN {Name} — {tier}: {condensed one-line}` — IDs, names, tiers script-verbatim | authored around script rows |
 | 7 | `## DO-NOT-BUILD (scope exclusions)` | one bullet per SC row: `SC-NN — {condensed one-line label}` — every canonical SC ID (VP-5), labels condensed by the formatter; a closing bullet pointing at the verbatim text in the wrapper file and `docs/blueprint/features/scope-boundaries.md` | authored around script SC rows |
 | 8 | `## Design posture` | ONE bullet — the posture statement matching the detected posture (skeletons in the wrapper section below), tagged with its source path | authored |
@@ -543,6 +573,7 @@ Distilled build constitution for {Project Name}. Full depth: docs/blueprint/.
 - The recommended architecture is BINDING; documented alternatives are informational only [S: architecture/technical-architecture.md]
 - {Area}: {choice} (ADR-NNN)
 {…one bullet per core stack area…}
+- Stack fit — {STACK_FIT_LINE} [S: README.md § Stack fit]
 
 ## Features — build order
 
@@ -587,8 +618,8 @@ cross-reference to another feature's spec is canonical text and stays exactly as
 |---|---------|--------|
 | 1 | `# {Project Name} — Build Prompt Sequence` + how-to-use intro (one prompt per message, in order; Prompt 0 in Plan/Discussion mode; never paste multiple prompts at once) | authored |
 | 2 | Order notes — one line per BROKEN row (both FEAT IDs on the line), shape keyed by the row's MUTUAL\|FORWARD field (the ↔ glyph asserts mutuality — MUTUAL lines only), or the none-line: "The dependency graph is acyclic — the order below has no forced breaks." | authored around script output |
-| 3 | `## Prompt 0 — Plan-mode seed` — distilled product + architecture summary, the FEAT list in build order (IDs + names, NO SPEC/AC IDs), the DO-NOT-BUILD pointer, "generate the plan — do not write code yet" | authored around script rows |
-| 4 | One `## Prompt {n} — {Feature Name} (FEAT-NN)` per ORDER row: feature summary (from `features/product-features.md` Description substance), dependencies line, one spec-digest bullet per SPEC row (Purpose verbatim), architecture-rules line, definition-of-done block (per-spec lines + total line, script values) | authored around script rows |
+| 3 | `## Prompt 0 — Plan-mode seed` — distilled product + architecture summary, the FEAT list in build order (IDs + names, NO SPEC/AC IDs), the DO-NOT-BUILD pointer, the key's `{STACK_FIT_LINE}` verbatim, "generate the plan — do not write code yet" | authored around script rows |
+| 4 | One `## Prompt {n} — {Feature Name} (FEAT-NN)` per ORDER row: feature summary (from `features/product-features.md` Description substance), dependencies line, one spec-digest bullet per SPEC row (Purpose verbatim), architecture-rules line (closing with the stack-fit sentence), definition-of-done block (per-spec lines + total line, script values) | authored around script rows |
 
 Skeleton:
 
@@ -624,6 +655,8 @@ The build runs as {N} features in this fixed dependency order:
 Architecture (binding): {one condensed stack line}. Nothing on the DO-NOT-BUILD list in
 the project knowledge may be built.
 
+Stack fit: {STACK_FIT_LINE}
+
 Generate the plan for this build: confirm the feature order above, propose the project
 scaffold, and tell me what you need before feature 1. Do not write code yet.
 
@@ -647,7 +680,9 @@ already-built label.}
 
 **Architecture rules:** follow the binding recommended architecture in the project
 knowledge{; ADR IDs cited where clearly relevant} — never substitute a documented
-alternative, and touch nothing on the DO-NOT-BUILD list.
+alternative, and touch nothing on the DO-NOT-BUILD list. Where {Tool}'s native stack
+stands in for a framework, runtime or hosting choice (see Stack fit in the project
+knowledge), keep the data model, rules and integrations exactly as specified.
 
 **Definition of done:**
 
@@ -679,7 +714,7 @@ paragraph. These files are uncapped (the 10k budget binds KNOWLEDGE.md alone).
 | # | Content | Method |
 |---|---------|--------|
 | 1 | `# {Project Name} — Build Constitution` + the per-key framing paragraph (below) | authored |
-| 2 | `## 1. The recommended architecture is binding` — recommendation binding, alternatives informational (with the `docs/blueprint/architecture/` pointer) | authored |
+| 2 | `## 1. The recommended architecture is binding` — recommendation binding, alternatives informational (with the `docs/blueprint/architecture/` pointer), then the key's `{STACK_FIT_LINE}` verbatim as its own paragraph | authored + template-pinned line |
 | 3 | `## 2. Conventions` — one feature per prompt in PROMPTS.md order, never re-derive the order; specs are the contract and acceptance criteria (by ID) are the definition of done; the blueprint copy is read-only reference | authored |
 | 4 | `## 3. DO-NOT-BUILD — explicit scope exclusions` heading + one framing sentence, then the verbatim `## Explicit Exclusions` section — every SC entry with rationale | authored frame + `extract_exclusions` append, VERBATIM — never retyped |
 | 5 | `## 4. Design posture` — ONE of three statements, per the detected posture | authored |
@@ -694,6 +729,9 @@ Section skeletons (adapt wording to the product; keep every rule's substance):
 every decision area, plus documented alternatives with their conditions. Build the
 recommendation. The alternatives are informational — for the humans who own this project
 to weigh; they are not the builder's to choose.
+
+{STACK_FIT_LINE} Where a substitution applies, note it in the repository so the humans
+who own this project can see what {Tool} replaced.
 
 ## 2. Conventions
 
@@ -755,7 +793,7 @@ The constitution skeleton with this framing paragraph first:
 {Add this file's content as a v0 Instruction (Instructions are account-level: apply via
 the + button on a message; they stay checked until unchecked). KNOWLEDGE.md goes in
 separately, as a project Source. Prompts assume v0's native Next.js + React + Tailwind +
-shadcn/ui stack unless the binding architecture below says otherwise.}
+shadcn/ui stack; §1 below says what the binding architecture governs regardless.}
 ```
 
 ### `bolt-pack` → `agents.md` + `.bolt/prompt` + `.bolt/ignore`
@@ -865,20 +903,30 @@ build prompt per feature, in dependency order), {the key's wrapper files}, and t
 complete blueprint verbatim under docs/blueprint/ for reference.}
 ```
 
+Every skeleton carries a `## Stack fit` section (the key's native-stack fact and the shared
+rule from the Stack fit register above) and a Gotchas line explaining the two provenance
+files — both issue #27 fixes; render them for every key.
+
 ### `lovable-pack` README skeleton (after the orientation paragraph)
 
 ````markdown
 ## Set up Lovable
 
 Lovable has no repo or ZIP import (it exports TO GitHub, not from it), so the pack loads
-by paste:
+by paste first and by repository second — in this order:
 
-1. Open your Lovable project → Settings → Knowledge, and paste the full contents of
-   KNOWLEDGE.md into Project Knowledge. The field caps at 10,000 characters; KNOWLEDGE.md
-   is sized to fit with headroom. (Workspace Knowledge is a separate 10k field for
-   owners/admins; if both are set, Project Knowledge wins on conflict.)
-2. Keep this pack's folder open beside Lovable — PROMPTS.md is your build script and
-   docs/blueprint/ is your reference when a prompt needs more depth.
+1. Create the Lovable project.
+2. Open Settings → Knowledge and paste the full contents of KNOWLEDGE.md into Project
+   Knowledge. The field caps at 10,000 characters; KNOWLEDGE.md is sized to fit with
+   headroom. (Workspace Knowledge is a separate 10k field for owners/admins; if both are
+   set, Project Knowledge wins on conflict.)
+3. Connect GitHub from the project settings — Lovable creates the repository and starts
+   two-way sync — then commit this pack's AGENTS.md at the repo root and docs/blueprint/
+   alongside it. Lovable reads a root AGENTS.md on every request once the repo is
+   connected, and every prompt below points at the full spec text under
+   docs/blueprint/specifications/, which Lovable can only see once it is committed to the
+   synced branch.
+4. Keep this pack's folder open beside Lovable as well — PROMPTS.md is your build script.
 
 ## Plan, then build
 
@@ -886,18 +934,24 @@ by paste:
    from PROMPTS.md. Review the plan it produces.
 2. Switch to default mode and feed the feature prompts ONE AT A TIME, in order. Never
    paste several at once — bulk input degrades output and burns credits.
+3. If you prompt before the repo is connected, Lovable cannot read docs/blueprint/ yet:
+   open the spec section a prompt points at under this pack's docs/blueprint/ and paste
+   it into the chat (the same fallback the Bolt pack uses).
 
-## Connect GitHub, then commit AGENTS.md
+## Stack fit
 
-When Lovable has created and connected its GitHub repo, commit this pack's AGENTS.md at
-the repo root — Lovable always reads a root AGENTS.md once the repo is connected, making
-the constitution persistent without spending Knowledge budget. Commit docs/blueprint/
-alongside it as the in-repo reference.
+Lovable generates React + Vite + TypeScript (Tailwind, shadcn/ui) with Supabase as its
+backend; it does not generate Next.js or other server frameworks. {The rule part of the
+key's `{STACK_FIT_LINE}` — everything after its first sentence — verbatim.} The same rule
+is in KNOWLEDGE.md, AGENTS.md §1 and every prompt, so the AI and you are reading the same
+contract.
 
 ## Gotchas
 
 - KNOWLEDGE.md and AGENTS.md carry the same rules on purpose — Knowledge covers you
-  before the repo exists; AGENTS.md takes over after.
+  before the repo is connected; AGENTS.md takes over after.
+- EXPORT-RECEIPT.md and FIDELITY-REPORT.md are provenance (what was exported and the gate
+  result). They are not build input, so don't paste them into Lovable.
 - Everything under docs/blueprint/ is read-only reference — regenerate upstream if it
   needs to change.
 ````
@@ -919,8 +973,12 @@ alongside it as the in-repo reference.
 1. Start with Prompt 0 from PROMPTS.md as a planning message and review the plan.
 2. Feed the feature prompts one at a time, in order. v0 queues up to 10 prompts — queue a
    few consecutive feature prompts if you want, but keep the order.
-3. Prompts assume v0's native stack — Next.js + React + Tailwind + shadcn/ui — except
-   where the binding architecture in the project knowledge says otherwise.
+
+## Stack fit
+
+v0 generates Next.js + React + Tailwind + shadcn/ui, so prompts assume that stack. {The
+rule part of the key's `{STACK_FIT_LINE}` — everything after its first sentence —
+verbatim.} The same rule is in KNOWLEDGE.md, INSTRUCTIONS.md §1 and every prompt.
 
 ## Gotchas
 
@@ -928,6 +986,9 @@ alongside it as the in-repo reference.
   or tokens into a prompt. This pack ships none; keep it that way.
 - v0 publishes no per-Source size or per-prompt length caps — the pack is designed
   defensively (staged prompts, Source-based knowledge), so stay with the sequence.
+- EXPORT-RECEIPT.md and FIDELITY-REPORT.md are provenance (what was exported and the gate
+  result). They are not build input, so don't attach them as Sources or paste them into
+  v0.
 - Everything under docs/blueprint/ is read-only reference — regenerate upstream if it
   needs to change.
 ````
@@ -953,6 +1014,14 @@ alongside it as the in-repo reference.
 2. Switch to Build and feed the feature prompts one at a time, in order — Bolt's own
    guidance says to focus on specific work, not the entire codebase.
 
+## Stack fit
+
+Bolt runs in WebContainers: JavaScript/TypeScript only — Node.js backends, React, Vue,
+Svelte, Next.js, Astro or Remix fronts, Supabase via its connect flow — and no Python, Go,
+Ruby or PHP runtime. {The rule part of the key's `{STACK_FIT_LINE}` — everything after its
+first sentence — verbatim.} The same rule is in KNOWLEDGE.md, agents.md §1 and every
+prompt.
+
 ## Gotchas
 
 - **Do not branch per feature.** Bolt does not support merging branches in-app — merge on
@@ -964,6 +1033,9 @@ alongside it as the in-repo reference.
 - When a prompt needs more spec depth than its digest, open the spec file under
   docs/blueprint/ outside Bolt and paste the relevant section into chat — docs/ is
   excluded from Bolt's context by .bolt/ignore on purpose.
+- EXPORT-RECEIPT.md and FIDELITY-REPORT.md are provenance (what was exported and the gate
+  result). They are not build input, so don't paste them into Bolt; leaving them in the
+  repository is harmless.
 - Everything under docs/blueprint/ is read-only reference — regenerate upstream if it
   needs to change.
 ````
@@ -989,6 +1061,13 @@ alongside it as the in-repo reference.
 2. Feed the feature prompts one at a time, in order — one feature per session, with a
    checkpoint after each.
 
+## Stack fit
+
+Replit Agent builds Node.js, Python and other server runtimes with a Neon-backed Postgres
+database, so most of this architecture runs as specified. {The rule part of the key's
+`{STACK_FIT_LINE}` — everything after its first sentence — verbatim.} The same rule is in
+KNOWLEDGE.md, replit.md §1 and every prompt.
+
 ## Cost warning — effort-based billing
 
 Replit bills by effort, and Plan Mode messages are billable too. Long autonomous passes
@@ -1004,6 +1083,8 @@ before the next prompt. Never paste the whole sequence and walk away.
 - Replit's agent has a documented greenfield bias (it degrades on large imported
   codebases). This pack ships documentation and harness only — no code — so the import
   stays light; keep sessions small as the codebase grows.
+- EXPORT-RECEIPT.md and FIDELITY-REPORT.md are provenance (what was exported and the gate
+  result). They are not build input, so don't paste them into the Agent chat.
 - Everything under docs/blueprint/ is read-only reference — regenerate upstream if it
   needs to change.
 ````

@@ -198,7 +198,7 @@ parameters — the universal rules stay untouched (P4).
 
 | Target key | Roster scope (files reconciled) | Transclusion contract | Excluded from U5 (`$U5_EXCLUDES`) | Target-specific rules |
 |---|---|---|---|---|
-| `dev-brief` | The full C-28 file set: `00-README.md`, `A-product-vision.md`, `B-usage-and-success.md`, `C-scope-and-assumptions.md`, `D-feature-catalog.md`, `E-feature-specifications/`, `F-data-model.md`, `G1-design-layer.md`, `G2-architecture.md`, `G3-database-schema.md`, `H-appendices.md`, `COMBINED.md` | **Full transclusion** — spec bodies, tables, edge cases, error messages, and ACs verbatim; formatter authors glue prose only (P1) | `--exclude=COMBINED.md` (no inner quotes — expanded from a variable) | DEV-1..DEV-3 below |
+| `dev-brief` | The full C-28 file set: `README.md`, `A-product-vision.md`, `B-usage-and-success.md`, `C-scope-and-assumptions.md`, `D-feature-catalog.md`, `E-feature-specifications/`, `F-data-model.md`, `G1-design-layer.md`, `G2-architecture.md`, `G3-database-schema.md`, `H-appendices.md`, `COMBINED.md` | **Full transclusion** — spec bodies, tables, edge cases, error messages, and ACs verbatim; formatter authors glue prose only (P1) | `--exclude=COMBINED.md` (no inner quotes — expanded from a variable) | DEV-1..DEV-3 below |
 | `agent-workspace` | The full C-30 file set: `README.md`, `AGENTS.md`, `CLAUDE.md`, `OPERATING-RULES.md`, `BUILD-ORDER.md`, `PROGRESS.md`, `feature_list.json`, `.devin/wiki.json`, `playbooks/build-next-feature.devin.md`, `docs/blueprint/**` (verbatim manifest copy) | **Verbatim-copy contract** — `docs/blueprint/` is a byte-identical copy of every MANIFEST `## Package Inventory` path; harness/instruction files author glue only | `--exclude=OPERATING-RULES.md` (no inner quotes — expanded from a variable) — its verbatim SC extract duplicates canonical exclusions text already counted in the `docs/blueprint/` copy, the same duplication class as dev-brief's COMBINED.md; every other glue file must add zero (Phase 2 D11) | AWS-1..AWS-6 below |
 | `speckit` | The full C-31 set: `README.md`, `.specify/memory/constitution.md`, `.specify/feature.json`, `specs/NNN-{slug}/spec.md` + `specs/NNN-{slug}/research.md` (one pair per canonical FEAT; NNN = build-order position), `docs/blueprint/**` (verbatim manifest copy) | **Spec-render + verbatim-copy** — each spec's ACs verbatim with full IDs inside its owning feature's spec.md (one User Story per SPEC, never paraphrased or renumbered); `docs/blueprint/` is a byte-identical copy of every MANIFEST `## Package Inventory` path | `--exclude=constitution.md` (no inner quotes — expanded from a variable) — its verbatim SC extract duplicates canonical scope text already counted in the `docs/blueprint/` copy, the same duplication class as agent-workspace's OPERATING-RULES.md; every other rendered file must add zero (D12) | SK-1..SK-7 below |
 | `prd` | The full C-32 set: `README.md`, `PRD.md`, `architecture.md`, `docs/blueprint/**` (verbatim manifest copy) | **Condensation + verbatim-copy** — PRD.md and architecture.md are condensed renders carrying IDs verbatim with **no AC transclusion** (any AC text that does appear must be verbatim; full depth lives in the blueprint copy); `docs/blueprint/` is a byte-identical copy of every MANIFEST `## Package Inventory` path | *(none)* | PR-1..PR-7 below |
@@ -220,7 +220,7 @@ Run after U1–U6 for a `dev-brief` render.
 **DEV-1 — Part-file completeness.** Every C-28 file exists and is non-empty:
 
 ```bash
-PARTS="00-README.md A-product-vision.md B-usage-and-success.md C-scope-and-assumptions.md D-feature-catalog.md F-data-model.md G1-design-layer.md G2-architecture.md G3-database-schema.md H-appendices.md COMBINED.md"
+PARTS="README.md A-product-vision.md B-usage-and-success.md C-scope-and-assumptions.md D-feature-catalog.md F-data-model.md G1-design-layer.md G2-architecture.md G3-database-schema.md H-appendices.md COMBINED.md"
 for P in $PARTS; do
   [ -s "$EXPORT_DIR/$P" ] || GATE_ERRORS="$GATE_ERRORS\n  ✗  DEV-1: $P missing or empty"
 done
@@ -236,7 +236,7 @@ for ID in $FEAT_ROSTER; do
 done
 ```
 
-**DEV-3 — COMBINED.md completeness.** `COMBINED.md` is the concatenation of `00-README.md` +
+**DEV-3 — COMBINED.md completeness.** `COMBINED.md` is the concatenation of `README.md` +
 parts A..H including every E chapter (C-28; assembled by shell per decision 90e). Check the
 concatenation by per-part first-heading presence — every part's first markdown heading must
 appear in `COMBINED.md`:
